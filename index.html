@@ -74,6 +74,11 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .host-title{font-weight:bold; font-size:18px;}
 .host-lobby,.host-rule,.host-qualifying,.host-reveal,.host-results,.host-semifinal,.host-semifinal-reveal,.host-semifinal-manual,.host-final,.host-champion{padding:24px; text-align:center;}
 .rule-display{text-align:left; max-width:700px; margin:20px auto 28px; line-height:1.7;}
+.rule-red{color:#c0392b;}
+.rule-normal{color:inherit;}
+.rule-display .rule-red{color:#ff7b7b;}
+.rule-display [style*="rgb(221, 51, 51)"],.rule-display font[color="#d33"]{color:#ff7b7b !important;}
+.rule-display [style*="rgb(0, 0, 0)"],.rule-display font[color="#000"]{color:inherit !important;}
 .finalist-names{margin-bottom:20px;}
 #qrcode-box{display:inline-block; background:#fff; padding:12px; border-radius:10px;}
 .join-url{font-size:12px; color:#9aa; word-break:break-all;}
@@ -87,7 +92,10 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .q-img{max-height:38vh; border-radius:8px; margin:10px auto; display:block; cursor:zoom-in;}
 .reveal-progress{color:#9aa; margin-bottom:8px;}
 .reveal-answers{max-width:640px; margin:14px auto;}
-.ans-row{display:flex; justify-content:space-between; align-items:center; gap:10px; background:#232838; padding:10px 16px; border-radius:8px; margin-bottom:6px;}
+.ans-row{display:flex; align-items:center; gap:14px; background:#232838; padding:10px 16px; border-radius:8px; margin-bottom:6px;}
+.ans-name{flex:0 0 150px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ans-val{flex:1 1 auto; text-align:left; min-width:0;}
+.ans-score{flex:0 0 150px; text-align:left; white-space:nowrap;}
 .ans-choice-thumb{max-height:60px; max-width:90px; border-radius:4px; vertical-align:middle; margin-right:4px; cursor:zoom-in;}
 .ans-correct{background:#204d29; outline:2px solid var(--good);}
 .ans-ref{opacity:.6;}
@@ -548,8 +556,8 @@ function buildRuleEditorBlockHTML(key){
   return `<div class="rule-editor-block">
     <div class="rich-toolbar" data-rule-key="${key}">
       <button type="button" data-cmd="bold">太字</button>
-      <button type="button" data-cmd="foreColor" data-val="#d33">赤字</button>
-      <button type="button" data-cmd="foreColor" data-val="#000">黒字</button>
+      <button type="button" data-cmd="colorclass" data-val="rule-red">赤字</button>
+      <button type="button" data-cmd="colorclass" data-val="rule-normal">黒字</button>
       <button type="button" data-cmd="upsize">文字を大きく</button>
       <button type="button" data-cmd="removeFormat">標準文字</button>
     </div>
@@ -572,7 +580,7 @@ function setupRuleEditor(key){
       ruleEdit.focus();
       const cmd=btn.dataset.cmd;
       if(cmd==='upsize'){ wrapSelectionBig(); }
-      else if(cmd==='foreColor'){ document.execCommand('foreColor', false, btn.dataset.val); }
+      else if(cmd==='colorclass'){ wrapSelectionClass(btn.dataset.val); }
       else { document.execCommand(cmd, false, null); }
       appData[key].ruleText = ruleEdit.innerHTML;
     });
@@ -593,6 +601,12 @@ function wrapSelectionBig(){
   const sel=window.getSelection(); if(!sel.rangeCount) return;
   const range=sel.getRangeAt(0); if(range.collapsed) return;
   const span=document.createElement('span'); span.style.fontSize='1.5em';
+  span.appendChild(range.extractContents()); range.insertNode(span);
+}
+function wrapSelectionClass(cls){
+  const sel=window.getSelection(); if(!sel.rangeCount) return;
+  const range=sel.getRangeAt(0); if(range.collapsed) return;
+  const span=document.createElement('span'); span.className=cls;
   span.appendChild(range.extractContents()); range.insertNode(span);
 }
 
@@ -911,7 +925,6 @@ function handleParticipantMessage(conn, data){
   } else if(data.type==='answer_update' && gameState.phase==='qualifying'){
     const p=gameState.players[data.playerId]; if(!p||p.qualifying.submitted) return;
     p.qualifying.answers = data.answers||{};
-    saveGameState(); renderHost();
   } else if(data.type==='qualifying_submit' && gameState.phase==='qualifying'){
     const p=gameState.players[data.playerId]; if(!p||p.qualifying.submitted) return;
     p.qualifying.answers = data.answers||{};
@@ -1198,14 +1211,14 @@ function gradeQualifying(){
     p.qualifying.passed = cnt>=appData.qualifying.passThreshold;
   });
   if(appData.qualifying.semifinalExemptionEnabled){
-    const submitted=Object.values(gameState.players).filter(p=>p.qualifying.submittedAtMs!=null);
-    if(submitted.length){
-      const minElapsed=Math.min(...submitted.map(p=>p.qualifying.submittedAtMs));
-      const perfect=qs.length;
-      Object.values(gameState.players).forEach(p=>{
-        p.qualifying.exempted = perfect>0 && p.qualifying.correctCount===perfect && p.qualifying.submittedAtMs===minElapsed;
-      });
-    }
+    const perfect=qs.length;
+    const perfectScorers=Object.values(gameState.players).filter(p=>p.qualifying.submittedAtMs!=null && p.qualifying.correctCount===perfect);
+    const minElapsed = perfectScorers.length ? Math.min(...perfectScorers.map(p=>p.qualifying.submittedAtMs)) : null;
+    Object.values(gameState.players).forEach(p=>{
+      p.qualifying.exempted = perfect>0 && p.qualifying.correctCount===perfect && minElapsed!=null && p.qualifying.submittedAtMs===minElapsed;
+    });
+  } else {
+    Object.values(gameState.players).forEach(p=>{ p.qualifying.exempted=false; });
   }
 }
 function renderQualifyingMonitor(){
@@ -1271,7 +1284,7 @@ function renderQualifyingReveal(){
     content = questionHeader + `<div class="reveal-correct"><div class="correct-label">正解: ${formatCorrectAnswer(q)}</div>
       <div class="reveal-answers">${players.map(([pid,p])=>{
         const ok=isCorrectEffective(q,p);
-        return `<div class="ans-row ${ok?'ans-correct':''}"><span class="ans-name">${escapeHtml(p.name)} ${ok?'⭕':''}</span><span class="ans-score">累計 ${computeRunningCorrect(p,idx)}問正解</span><button class="btn-mini" data-action="toggle-qualifying-answer" data-arg="${pid}|${q.id}">${ok?'❌不正解に直す':'⭕正解に直す'}</button></div>`;
+        return `<div class="ans-row ${ok?'ans-correct':''}"><span class="ans-name">${escapeHtml(p.name)} ${ok?'⭕':''}</span><span class="ans-val">${formatPlayerAnswer(q,p)}</span><span class="ans-score">累計 ${computeRunningCorrect(p,idx)}問正解</span><button class="btn-mini" data-action="toggle-qualifying-answer" data-arg="${pid}|${q.id}">${ok?'❌不正解に直す':'⭕正解に直す'}</button></div>`;
       }).join('')}</div></div>`;
   }
   const isLast = idx===qs.length-1 && sub===2;
@@ -1396,13 +1409,18 @@ function enterSemifinalReveal(){
   gameState.phase='semifinal_reveal';
   saveGameState(); broadcastStateSync(); renderHost();
 }
+function semifinalPlayerTag(id){
+  if(gameState.semifinal.advancedOrder.includes(id)) return '（決勝進出者）';
+  if(!gameState.semifinal.targets.includes(id)) return '（参考）';
+  return '';
+}
 function renderSemifinalPhase(){
   if(gameState.semifinal.manualSelect) return renderManualSelect();
   const q=currentSemifinalQuestion();
   const remain=gameState.semifinal.roundStartedAt+gameState.semifinal.durationMs-Date.now();
   const advancedNames=gameState.semifinal.advancedOrder.map(id=>gameState.players[id]?gameState.players[id].name:'');
   const targets=gameState.semifinal.targets;
-  const players=Object.entries(gameState.players).filter(([id])=>!gameState.semifinal.advancedOrder.includes(id));
+  const players=Object.entries(gameState.players);
   const show=!!gameState.semifinal.showSubmitStatus;
   return `<div class="host-semifinal">
     <h2>準決勝 第${gameState.semifinal.roundIndex+1}問</h2>
@@ -1410,7 +1428,7 @@ function renderSemifinalPhase(){
     ${renderImgList(q.prompt.imgs,'q-img')}
     <div class="q-text-big">${escapeHtml(q.prompt.text)}</div>
     <div class="big-timer" id="semifinal-timer">${fmtTime(remain)}</div>
-    <div class="player-chips">${players.map(([id,p])=>`<span class="chip ${show&&p.semifinal.lastAnswer!=null?'chip-good':''} ${targets.includes(id)?'':'chip-ref'}">${escapeHtml(p.name)}${targets.includes(id)?'':'(参考)'}${show?(p.semifinal.lastAnswer!=null?' ✅':' …'):''}</span>`).join('')}</div>
+    <div class="player-chips">${players.map(([id,p])=>`<span class="chip ${show&&p.semifinal.lastAnswer!=null?'chip-good':''} ${targets.includes(id)?'':'chip-ref'}">${escapeHtml(p.name)}${semifinalPlayerTag(id)}${show?(p.semifinal.lastAnswer!=null?' ✅':' …'):''}</span>`).join('')}</div>
     <div class="row" style="justify-content:center">
       <button data-action="toggle-semifinal-submit-status" class="btn-mini">${show?'🙈 提出状況を隠す':'👀 提出状況を表示'}</button>
       <button data-action="force-end-semifinal" class="btn-mini">⏹ 今すぐ締め切る</button>
@@ -1482,16 +1500,21 @@ function semifinalPreviewText(){
 function renderSemifinalReveal(){
   const q=currentSemifinalQuestion();
   const targets=gameState.semifinal.targets;
-  const players=Object.entries(gameState.players).filter(([id])=>!gameState.semifinal.advancedOrder.includes(id));
+  const players=Object.entries(gameState.players).sort((a,b)=>{
+    const av=a[1].semifinal.lastAnswer, bv=b[1].semifinal.lastAnswer;
+    const an=av==null?-Infinity:Number(av), bn=bv==null?-Infinity:Number(bv);
+    return bn-an;
+  });
   const stage=gameState.semifinal.revealStage;
   let body='';
   if(stage==='answers'){
-    body=`<div class="reveal-answers">${players.map(([id,p])=>`<div class="ans-row ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${targets.includes(id)?'':'（参考）'}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span></div>`).join('')}</div>`;
+    body=`<div class="reveal-answers">${players.map(([id,p])=>`<div class="ans-row ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${semifinalPlayerTag(id)}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span></div>`).join('')}</div>`;
   } else {
     body=`<div class="reveal-correct"><div class="correct-label">正解: ${q.targetNumber}</div>
       <div class="reveal-answers">${players.map(([id,p])=>{
         const isNearest = (gameState.semifinal._nearestGroup||[]).includes(id);
-        return `<div class="ans-row ${isNearest?'ans-correct':''} ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${isNearest?' ⭐':''}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span><button class="btn-mini" data-action="toggle-nearest" data-arg="${id}">${isNearest?'対象から外す':'対象に入れる'}</button></div>`;
+        const isAdvanced = gameState.semifinal.advancedOrder.includes(id);
+        return `<div class="ans-row ${isNearest?'ans-correct':''} ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${semifinalPlayerTag(id)}${isNearest?' ⭐':''}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span>${isAdvanced?'':`<button class="btn-mini" data-action="toggle-nearest" data-arg="${id}">${isNearest?'対象から外す':'対象に入れる'}</button>`}</div>`;
       }).join('')}</div>
       <div class="result-text">${escapeHtml(semifinalPreviewText())}</div>
     </div>`;
@@ -1780,7 +1803,13 @@ function attachParticipantQualifyingEvents(){
     });
   });
 }
-function sendAnswerUpdate(){ if(myConn&&myConn.open) myConn.send({type:'answer_update', playerId:myPlayerId, answers:qualifyingLocal.answers}); }
+let answerUpdateDebounceHandle=null;
+function sendAnswerUpdate(){
+  clearTimeout(answerUpdateDebounceHandle);
+  answerUpdateDebounceHandle=setTimeout(()=>{
+    if(myConn&&myConn.open) myConn.send({type:'answer_update', playerId:myPlayerId, answers:qualifyingLocal.answers});
+  },400);
+}
 function startParticipantTimer(){
   clearInterval(participantTimerHandle);
   const startedAt=qualifyingLocal.startedAt, duration=qualifyingLocal.durationMs;
@@ -1815,17 +1844,16 @@ function forceSubmitQualifying(){
 /* ---- participant: semifinal ---- */
 function renderSemifinalParticipant(payload){
   const root=document.getElementById('participant-root');
-  if(payload.alreadyAdvanced){
-    root.innerHTML = `<div class="p-center"><p class="tag tag-pass">決勝進出決定！</p><p>ホストの画面をご覧ください。</p></div>`;
-    return;
-  }
   if(payload.submitted){
     root.innerHTML = `<div class="p-center"><h2>解答しました</h2><p>結果発表をお待ちください。</p></div>`;
     return;
   }
+  let statusTag='';
+  if(payload.alreadyAdvanced) statusTag='<p class="tag tag-pass">決勝進出者（結果には影響しません）</p>';
+  else if(!payload.isTarget) statusTag='<p class="tag tag-warn">あなたは今回対象外です（参考解答）</p>';
   root.innerHTML = `<div class="p-semifinal">
     <div class="p-timer-bar"><span id="p-timer">--:--</span></div>
-    ${!payload.isTarget?'<p class="tag tag-warn">あなたは今回対象外です（参考解答）</p>':''}
+    ${statusTag}
     <input type="number" id="sf-input" placeholder="予想する数字"><br>
     <button id="btn-submit-sf">送信</button>
   </div>`;
