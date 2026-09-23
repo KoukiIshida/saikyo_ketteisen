@@ -161,6 +161,11 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
       <label>タイトル<br><input id="f-title" type="text" style="width:100%"></label>
     </section>
     <section class="card">
+      <h2>大会全体のルール説明</h2>
+      <p class="muted">ゲーム開始直後、予選のルール説明より前に表示されます。</p>
+      <div id="rule-editor-overall"></div>
+    </section>
+    <section class="card">
       <h2>予選設定</h2>
       <h3>予選のルール説明</h3>
       <div id="rule-editor-qualifying"></div>
@@ -303,6 +308,7 @@ function slugify(text){
 /* ---------- data model ---------- */
 function defaultAppData(){return {
   eventTitle:'○○最強決定戦',
+  overall:{ ruleText:'', ruleImg:null },
   qualifying:{ timeLimitMinutes:5, passThreshold:3, semifinalExemptionEnabled:true, ruleText:'', ruleImg:null, questions:[] },
   semifinal:{ timeLimitSeconds:30, finalistCount:3, ruleText:'', ruleImg:null, questions:[] },
   final:{ winCount:3, ruleText:'', ruleImg:null, questions:[] }
@@ -367,6 +373,7 @@ document.addEventListener('DOMContentLoaded', init);
 function mergeLoadedAppData(loaded){
   const d=defaultAppData();
   const merged=Object.assign({}, d, loaded);
+  merged.overall=Object.assign({},d.overall, loaded.overall||{});
   merged.qualifying=Object.assign({},d.qualifying, loaded.qualifying||{});
   merged.semifinal=Object.assign({},d.semifinal, loaded.semifinal||{});
   merged.final=Object.assign({},d.final, loaded.final||{});
@@ -465,6 +472,7 @@ function initAdmin(){
   document.getElementById('f-title').value=appData.eventTitle;
   document.getElementById('f-title').addEventListener('change',e=>{appData.eventTitle=e.target.value; upsertEventRegistry(EVENT_ID, appData.eventTitle);});
 
+  setupRuleEditor('overall');
   setupRuleEditor('qualifying');
   setupRuleEditor('semifinal');
   setupRuleEditor('final');
@@ -501,7 +509,7 @@ function initAdmin(){
 }
 function refreshAdminUI(){
   document.getElementById('f-title').value = appData.eventTitle;
-  setupRuleEditor('qualifying'); setupRuleEditor('semifinal'); setupRuleEditor('final');
+  setupRuleEditor('overall'); setupRuleEditor('qualifying'); setupRuleEditor('semifinal'); setupRuleEditor('final');
   document.getElementById('q-time').value = appData.qualifying.timeLimitMinutes;
   document.getElementById('q-pass').value = appData.qualifying.passThreshold;
   document.getElementById('q-exempt').checked = appData.qualifying.semifinalExemptionEnabled;
@@ -991,7 +999,8 @@ const hostActions={
   'open-admin': ()=>{ window.open(location.pathname+'?mode=admin&event='+encodeURIComponent(EVENT_ID),'_blank'); },
   'reset-room': ()=>{ if(confirm('新しい部屋を作り直しますか？進行状況はリセットされます。')){ localStorage.removeItem(LS_STATE); localStorage.removeItem(LS_ROOM); location.reload(); } },
   'restart-all': ()=>{ if(confirm('最初からやり直しますか？（全員の進行状況がリセットされます）')){ resetWholeGame(); } },
-  'start-rule': ()=>{ gameState.phase='rule'; gameState.ruleKey='qualifying'; saveGameState(); broadcastStateSync(); renderHost(); },
+  'start-rule': ()=>{ gameState.phase='rule'; gameState.ruleKey='overall'; saveGameState(); broadcastStateSync(); renderHost(); },
+  'show-qualifying-rule': ()=>{ gameState.ruleKey='qualifying'; saveGameState(); broadcastStateSync(); renderHost(); },
   'start-qualifying': ()=>{ startQualifying(); },
   'start-semifinal': ()=>{ startNextSemifinalQuestion(); },
   'force-end-qualifying': ()=>{ endQualifyingNow(); },
@@ -1014,15 +1023,16 @@ const hostActions={
     saveGameState(); renderHost();
   },
   'manual-pick-toggle': (arg,btn)=>{
-    const id=arg; const remaining=gameState.semifinal.neededTotal-gameState.semifinal.advancedOrder.length;
+    const id=arg; const required=semifinalManualRequiredPicks();
     if(btn.checked){
-      if(gameState.semifinal.manualPicks.length<remaining && !gameState.semifinal.manualPicks.includes(id)) gameState.semifinal.manualPicks.push(id);
+      if(gameState.semifinal.manualPicks.length<required && !gameState.semifinal.manualPicks.includes(id)) gameState.semifinal.manualPicks.push(id);
       else btn.checked=false;
     } else {
       gameState.semifinal.manualPicks=gameState.semifinal.manualPicks.filter(x=>x!==id);
     }
     renderHost();
   },
+  'sf-manual-confirm-all': ()=>{ confirmManualSelectAll(); },
   'sf-manual-confirm': ()=>{ confirmManualSelect(); },
   'final-start': ()=>{ startFinalRound(); },
   'final-mark': (arg)=>{ const [pid,verdict]=arg.split('|'); markFinalAnswer(pid,verdict); },
@@ -1054,7 +1064,8 @@ function handleHostEnter(){
     case 'final': if(currentFinalQuestion()) nextFinalQuestion(); break;
     case 'rule': {
       const key=gameState.ruleKey||'qualifying';
-      if(key==='qualifying') startQualifying();
+      if(key==='overall') hostActions['show-qualifying-rule']();
+      else if(key==='qualifying') startQualifying();
       else if(key==='semifinal') startNextSemifinalQuestion();
       else if(key==='final') startFinalRound();
       break;
@@ -1091,7 +1102,7 @@ function renderLobby(){
     <p>参加人数: <strong>${players.length}</strong>人</p>
     <div class="player-chips">${players.map(p=>`<span class="chip ${p.connected?'':'chip-off'}">${escapeHtml(p.name)}</span>`).join('')||'<span class="muted">まだ誰も参加していません</span>'}</div>
     <div class="row" style="justify-content:center">
-      <button data-action="start-rule" class="btn-primary" ${players.length===0?'disabled':''}>▶ 予選のルール説明へ進む</button>
+      <button data-action="start-rule" class="btn-primary" ${players.length===0?'disabled':''}>▶ ルール説明へ進む</button>
     </div>
   </div>`;
 }
@@ -1103,6 +1114,7 @@ function renderQR(){
   const t=document.getElementById('join-url-text'); if(t){ t.textContent=url; }
 }
 const RULE_PHASE_CONFIG = {
+  overall:{title:'大会全体のルール説明', action:'show-qualifying-rule', btn:'▶ 予選のルール説明へ'},
   qualifying:{title:'予選のルール説明', action:'start-qualifying', btn:'▶ 予選を始める'},
   semifinal:{title:'準決勝のルール説明', action:'start-semifinal', btn:'▶ 準決勝を始める'},
   final:{title:'決勝のルール説明', action:'final-start', btn:'▶ 決勝を始める'}
@@ -1377,21 +1389,39 @@ function renderSemifinalPhase(){
     <button data-action="force-end-semifinal" class="btn-mini">⏹ 今すぐ締め切る</button>
   </div>`;
 }
+function semifinalManualRequiredPicks(){
+  const remaining = gameState.semifinal.neededTotal - gameState.semifinal.advancedOrder.length;
+  return Math.min(remaining, gameState.semifinal.targets.length);
+}
 function renderManualSelect(){
   const remaining = gameState.semifinal.neededTotal - gameState.semifinal.advancedOrder.length;
   const candidates = gameState.semifinal.targets;
+  if(candidates.length<=remaining){
+    return `<div class="host-semifinal-manual">
+      <h2>準決勝 問題切れ - 進出者を選択</h2>
+      <p>残り${remaining}枠に対して対象者が${candidates.length}名しかいないため、対象者全員が決勝進出となります。</p>
+      <div class="manual-list">${candidates.map(id=>`<div class="manual-row">${escapeHtml(gameState.players[id].name)}</div>`).join('')||'<p class="muted">対象者がいません</p>'}</div>
+      <button data-action="sf-manual-confirm-all" class="btn-primary">▶ 決勝進出者を確定</button>
+    </div>`;
+  }
+  const required=semifinalManualRequiredPicks();
   return `<div class="host-semifinal-manual">
     <h2>準決勝 問題切れ - 進出者を選択</h2>
-    <p>残り${remaining}枠。対象者から選んでください。</p>
+    <p>残り${remaining}枠。対象者から${required}名選んでください。</p>
     <div class="manual-list">${candidates.map(id=>{
       const p=gameState.players[id]; const picked=gameState.semifinal.manualPicks.includes(id);
       return `<label class="manual-row"><input type="checkbox" data-action="manual-pick-toggle" data-arg="${id}" ${picked?'checked':''}> ${escapeHtml(p.name)}</label>`;
     }).join('')}</div>
-    <button data-action="sf-manual-confirm" class="btn-primary" ${gameState.semifinal.manualPicks.length===remaining?'':'disabled'}>▶ 決勝進出者を確定</button>
+    <button data-action="sf-manual-confirm" class="btn-primary" ${gameState.semifinal.manualPicks.length===required?'':'disabled'}>▶ 決勝進出者を確定</button>
   </div>`;
 }
 function confirmManualSelect(){
   gameState.semifinal.manualPicks.forEach(id=>{ gameState.semifinal.advancedOrder.push(id); gameState.players[id].semifinal.advanced=true; });
+  gameState.semifinal.manualSelect=false;
+  startFinalIntro();
+}
+function confirmManualSelectAll(){
+  gameState.semifinal.targets.forEach(id=>{ gameState.semifinal.advancedOrder.push(id); gameState.players[id].semifinal.advanced=true; });
   gameState.semifinal.manualSelect=false;
   startFinalIntro();
 }
@@ -1484,6 +1514,7 @@ function startFinalIntro(){
 function startFinalRound(){
   const qs=includedFinalQuestions();
   if(qs.length===0){ alert('決勝の問題が登録されていません'); return; }
+  if(gameState.final.finalists.length===0){ alert('決勝進出者がいません。予選の合格ラインなどを見直してください。'); return; }
   gameState.phase='final';
   gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null;
   saveGameState(); broadcastStateSync(); renderHost();
@@ -1636,8 +1667,8 @@ function renderParticipant(){
       root.innerHTML=`<div class="p-center"><h2>${escapeHtml(payload.eventTitle||'')}</h2><p>${escapeHtml(myName)}さん、開始までお待ちください。</p></div>`; break;
     case 'rule': {
       const key = payload.ruleKey||'qualifying';
-      const titleMap = {qualifying:'予選のルール', semifinal:'準決勝のルール', final:'決勝のルール'};
-      const nextMap = {qualifying:'まもなく予選が始まります。', semifinal:'まもなく準決勝が始まります。', final:'まもなく決勝が始まります。'};
+      const titleMap = {overall:'大会全体のルール', qualifying:'予選のルール', semifinal:'準決勝のルール', final:'決勝のルール'};
+      const nextMap = {overall:'まもなく予選のルール説明があります。', qualifying:'まもなく予選が始まります。', semifinal:'まもなく準決勝が始まります。', final:'まもなく決勝が始まります。'};
       let finalistsHtml='';
       if(key==='final'){
         finalistsHtml = `<h3>決勝進出者</h3><p>${(payload.finalists||[]).map(n=>escapeHtml(n)).join('、')}</p>${payload.amFinalist?'<p class="tag tag-pass">あなたも決勝進出です！</p>':'<p>応援よろしくお願いします！</p>'}`;
