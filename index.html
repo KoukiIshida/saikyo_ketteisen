@@ -162,7 +162,10 @@ textarea{width:100%; font-family:inherit;}
       <h2>準決勝設定（近似値クイズ）</h2>
       <h3>準決勝のルール説明</h3>
       <div id="rule-editor-semifinal"></div>
-      <label>回答制限時間（秒・全問共通）<input id="sf-time" type="number" min="5" style="width:70px"></label>
+      <div class="row">
+        <label>回答制限時間（秒・全問共通）<input id="sf-time" type="number" min="5" style="width:70px"></label>
+        <label>決勝進出者数<input id="sf-finalist-count" type="number" min="2" style="width:70px"></label>
+      </div>
       <div id="sf-list"></div>
       <button type="button" id="sf-add" class="btn-mini">＋ 問題を追加</button>
     </section>
@@ -170,6 +173,9 @@ textarea{width:100%; font-family:inherit;}
       <h2>決勝設定（早押し）</h2>
       <h3>決勝のルール説明</h3>
       <div id="rule-editor-final"></div>
+      <div class="row">
+        <label>優勝に必要な正解数<input id="fn-wincount" type="number" min="1" style="width:70px"></label>
+      </div>
       <div id="fn-list"></div>
       <button type="button" id="fn-add" class="btn-mini">＋ 問題を追加</button>
     </section>
@@ -254,8 +260,8 @@ async function idbSet(data){const db=await openDb();return new Promise((res,rej)
 function defaultAppData(){return {
   eventTitle:'○○最強決定戦',
   qualifying:{ timeLimitMinutes:5, passThreshold:3, semifinalExemptionEnabled:true, ruleText:'', ruleImg:null, questions:[] },
-  semifinal:{ timeLimitSeconds:30, ruleText:'', ruleImg:null, questions:[] },
-  final:{ ruleText:'', ruleImg:null, questions:[] }
+  semifinal:{ timeLimitSeconds:30, finalistCount:3, ruleText:'', ruleImg:null, questions:[] },
+  final:{ winCount:3, ruleText:'', ruleImg:null, questions:[] }
 };}
 function makeQA(type){return {id:uid('q'), prompt:{text:'',imgs:[]}, type:type||'text', correctTexts:[''], choices:[{text:'',img:null},{text:'',img:null}], layout:'text', correctIndices:[], selectCount:1, include:true, done:false};}
 function makeSF(){return {id:uid('s'), prompt:{text:'',imgs:[]}, targetNumber:0, include:true, done:false};}
@@ -359,8 +365,12 @@ function initAdmin(){
 
   document.getElementById('sf-time').value=appData.semifinal.timeLimitSeconds;
   document.getElementById('sf-time').addEventListener('change',e=>{appData.semifinal.timeLimitSeconds=Number(e.target.value)||5;});
+  document.getElementById('sf-finalist-count').value=appData.semifinal.finalistCount;
+  document.getElementById('sf-finalist-count').addEventListener('change',e=>{appData.semifinal.finalistCount=Math.max(2,Number(e.target.value)||3);});
   document.getElementById('sf-add').addEventListener('click',()=>{appData.semifinal.questions.push(makeSF()); renderSfList();});
 
+  document.getElementById('fn-wincount').value=appData.final.winCount;
+  document.getElementById('fn-wincount').addEventListener('change',e=>{appData.final.winCount=Math.max(1,Number(e.target.value)||3);});
   document.getElementById('fn-add').addEventListener('click',()=>{appData.final.questions.push(makeFinalQ()); renderFnList();});
 
   document.getElementById('btn-save').addEventListener('click', async ()=>{ await persistAppData(); });
@@ -382,6 +392,8 @@ function refreshAdminUI(){
   document.getElementById('q-pass').value = appData.qualifying.passThreshold;
   document.getElementById('q-exempt').checked = appData.qualifying.semifinalExemptionEnabled;
   document.getElementById('sf-time').value = appData.semifinal.timeLimitSeconds;
+  document.getElementById('sf-finalist-count').value = appData.semifinal.finalistCount;
+  document.getElementById('fn-wincount').value = appData.final.winCount;
   renderQList(); renderSfList(); renderFnList(); renderConfirm();
 }
 function exportAppData(){
@@ -689,9 +701,9 @@ function renderConfirm(){
   el.innerHTML = `
     <div><strong>予選（${qList.length}問・制限${appData.qualifying.timeLimitMinutes}分・合格ライン${appData.qualifying.passThreshold}問正解・準決勝免除${appData.qualifying.semifinalExemptionEnabled?'ON':'OFF'}）</strong>
       <ol>${qList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
-    <div><strong>準決勝（登録${sfList.length}問・回答${appData.semifinal.timeLimitSeconds}秒）</strong>
+    <div><strong>準決勝（登録${sfList.length}問・回答${appData.semifinal.timeLimitSeconds}秒・決勝進出者${appData.semifinal.finalistCount}名）</strong>
       <ol>${sfList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}（正解:${q.targetNumber}）</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
-    <div><strong>決勝（${fnList.length}問）</strong>
+    <div><strong>決勝（${fnList.length}問・優勝に必要な正解数${appData.final.winCount}問）</strong>
       <ol>${fnList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
   `;
 }
@@ -705,7 +717,7 @@ function freshGameState(){return {
   ruleKey:'qualifying',
   players:{},
   qualifying:{startedAt:null, durationMs:0, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
-  semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:3, exemptedId:null, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
+  semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedId:null, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
   final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
@@ -847,6 +859,7 @@ function sendStateSyncTo(playerId){
     payload.amFinalist = gameState.final.finalists.includes(playerId);
     payload.locked = p.final.lockedUntilQuestionIdx!=null && p.final.lockedUntilQuestionIdx>=gameState.final.qIndex;
     payload.scores = gameState.final.finalists.map(id=>({name:gameState.players[id]?gameState.players[id].name:'', count:gameState.players[id]?gameState.players[id].final.correctCount:0}));
+    payload.winCount = appData.final.winCount;
     if(gameState.final.roundState==='explained'){
       payload.explained = true;
       payload.correctName = gameState.players[gameState.final.pendingCorrectPlayer] ? gameState.players[gameState.final.pendingCorrectPlayer].name : '';
@@ -1197,8 +1210,9 @@ function setupSemifinal(){
   const candidates=Object.entries(gameState.players).filter(([id,p])=>p.qualifying.passed && id!==exemptedId).map(([id])=>id);
   const advancedOrder = exemptedId?[exemptedId]:[];
   Object.entries(gameState.players).forEach(([id,p])=>{ p.semifinal={advanced:advancedOrder.includes(id), lastAnswer:null}; });
-  gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:3, exemptedId, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
-  if(advancedOrder.length>=3 || candidates.length===0){ startFinalIntro(); return; }
+  const finalistCount=appData.semifinal.finalistCount;
+  gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:finalistCount, exemptedId, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
+  if(advancedOrder.length>=finalistCount || candidates.length===0){ startFinalIntro(); return; }
   gameState.phase='rule'; gameState.ruleKey='semifinal';
   saveGameState(); broadcastStateSync(); renderHost();
 }
@@ -1366,7 +1380,7 @@ function buildFinalPlayerRows(idx, showButtons){
     const locked = p.final.lockedUntilQuestionIdx!=null && p.final.lockedUntilQuestionIdx>=idx;
     return `<div class="final-player-row ${locked?'locked':''}">
       <span class="final-name">${escapeHtml(p.name)}</span>
-      <span class="final-count">正解数: ${p.final.correctCount} / 3</span>
+      <span class="final-count">正解数: ${p.final.correctCount} / ${appData.final.winCount}</span>
       ${(showButtons && !locked)? `
         <button class="btn-mini btn-good" data-action="final-mark" data-arg="${id}|correct">⭕正解</button>
         <button class="btn-mini btn-bad" data-action="final-mark" data-arg="${id}|wrong">❌不正解</button>` : (locked?'<span class="tag tag-fail">解答権なし</span>':'')}
@@ -1384,7 +1398,7 @@ function renderFinalPhase(){
   const isLastQuestion = idx===includedFinalQuestions().length-1;
   if(gameState.final.roundState==='explained'){
     const correctPlayer=gameState.players[gameState.final.pendingCorrectPlayer];
-    const willBeChampion = correctPlayer && correctPlayer.final.correctCount>=3;
+    const willBeChampion = correctPlayer && correctPlayer.final.correctCount>=appData.final.winCount;
     return `<div class="host-final">
       <h2>決勝 第${idx+1}問${isLastQuestion?'（最終問題）':''}</h2>
       <div class="correct-label">${escapeHtml(correctPlayer?correctPlayer.name:'')}さん 正解！</div>
@@ -1420,7 +1434,7 @@ function nextFinalQuestion(){
   if(gameState.final.roundState==='explained'){
     const pid=gameState.final.pendingCorrectPlayer;
     const p=pid && gameState.players[pid];
-    if(p && p.final.correctCount>=3){ declareChampion(pid); return; }
+    if(p && p.final.correctCount>=appData.final.winCount){ declareChampion(pid); return; }
     gameState.final.pendingCorrectPlayer=null;
   }
   gameState.final.qIndex++;
@@ -1669,7 +1683,8 @@ function startSemifinalParticipantTimer(payload){
 /* ---- participant: final ---- */
 function renderFinalParticipant(payload){
   const root=document.getElementById('participant-root');
-  const scoresHtml=(payload.scores||[]).map(s=>`<div class="final-score-row">${escapeHtml(s.name)}: ${s.count}/3</div>`).join('');
+  const winCount=payload.winCount||3;
+  const scoresHtml=(payload.scores||[]).map(s=>`<div class="final-score-row">${escapeHtml(s.name)}: ${s.count}/${winCount}</div>`).join('');
   let explHtml='';
   if(payload.explained){
     explHtml = `<div class="correct-label">${escapeHtml(payload.correctName||'')}さん 正解！</div>
