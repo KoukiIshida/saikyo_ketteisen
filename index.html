@@ -73,6 +73,8 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .host-topbar-actions{display:flex; gap:8px;}
 .host-title{font-weight:bold; font-size:18px;}
 .host-lobby,.host-rule,.host-qualifying,.host-reveal,.host-results,.host-semifinal,.host-semifinal-reveal,.host-semifinal-manual,.host-final,.host-champion{padding:24px; text-align:center;}
+.rule-display{text-align:left; max-width:700px; margin:20px auto 28px; line-height:1.7;}
+.finalist-names{margin-bottom:20px;}
 #qrcode-box{display:inline-block; background:#fff; padding:12px; border-radius:10px;}
 .join-url{font-size:12px; color:#9aa; word-break:break-all;}
 .player-chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:14px 0;}
@@ -86,6 +88,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .reveal-progress{color:#9aa; margin-bottom:8px;}
 .reveal-answers{max-width:640px; margin:14px auto;}
 .ans-row{display:flex; justify-content:space-between; align-items:center; gap:10px; background:#232838; padding:10px 16px; border-radius:8px; margin-bottom:6px;}
+.ans-choice-thumb{max-height:60px; max-width:90px; border-radius:4px; vertical-align:middle; margin-right:4px; cursor:zoom-in;}
 .ans-correct{background:#204d29; outline:2px solid var(--good);}
 .ans-ref{opacity:.6;}
 .correct-label{font-size:22px; color:#ffd166; margin-bottom:10px;}
@@ -118,7 +121,6 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .p-center{padding:40px 20px; text-align:center;}
 .p-center input{width:80%; padding:12px; font-size:16px; margin:10px 0; border:1px solid #ccc; border-radius:8px;}
 .p-center button{padding:12px 26px; font-size:16px; background:var(--accent); color:#fff; border:none; border-radius:8px;}
-.p-rule{padding:16px;}
 .rule-img{border-radius:8px; margin-bottom:10px; cursor:zoom-in;}
 .p-timer-bar{position:sticky; top:0; background:#222; color:#fff; text-align:center; padding:8px; font-size:20px; font-variant-numeric:tabular-nums; z-index:10;}
 .p-q-card{background:#fff; margin:10px; padding:14px; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08);}
@@ -132,8 +134,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .p-choice img{max-height:120px; border-radius:6px;}
 .p-select-hint{font-size:12px; color:#888; margin-top:4px;}
 #btn-submit-qualifying{display:block; width:calc(100% - 20px); margin:16px 10px 30px; padding:16px; font-size:18px; background:var(--good); color:#fff; border:none; border-radius:10px; font-weight:bold;}
-.p-semifinal,.p-final{padding:16px;}
-.final-score-row{background:#fff; padding:8px 12px; border-radius:6px; margin-bottom:6px;}
+.p-semifinal{padding:16px;}
 .flash-toast{position:fixed; left:50%; bottom:30px; transform:translate(-50%,20px); background:#333; color:#fff; padding:10px 18px; border-radius:20px; opacity:0; transition:.25s; pointer-events:none; z-index:1000;}
 .flash-toast.show{opacity:1; transform:translate(-50%,0);}
 </style>
@@ -182,7 +183,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
       <h3>準決勝のルール説明</h3>
       <div id="rule-editor-semifinal"></div>
       <div class="row">
-        <label>回答制限時間（秒・全問共通）<input id="sf-time" type="number" min="5" style="width:70px"></label>
+        <label>解答制限時間（秒・全問共通）<input id="sf-time" type="number" min="5" style="width:70px"></label>
         <label>決勝進出者数<input id="sf-finalist-count" type="number" min="2" style="width:70px"></label>
       </div>
       <div id="sf-list"></div>
@@ -265,7 +266,7 @@ function openImgModal(src){ document.getElementById('img-modal-src').src=src; do
 function closeImgModal(){ document.getElementById('img-modal').classList.remove('active'); }
 document.getElementById('img-modal').addEventListener('click', closeImgModal);
 document.addEventListener('click', e=>{
-  if(e.target.tagName==='IMG' && e.target.closest('.p-q-img,.q-img,.rule-img,.thumb,.p-choice img')){ openImgModal(e.target.src); }
+  if(e.target.tagName==='IMG' && e.target.closest('.p-q-img,.q-img,.rule-img,.thumb,.p-choice img,.ans-choice-thumb')){ openImgModal(e.target.src); }
 });
 
 /* ---------- wake lock ---------- */
@@ -549,7 +550,7 @@ function buildRuleEditorBlockHTML(key){
       <button type="button" data-cmd="bold">太字</button>
       <button type="button" data-cmd="foreColor" data-val="#d33">赤字</button>
       <button type="button" data-cmd="foreColor" data-val="#000">黒字</button>
-      <button type="button" data-cmd="upsize">大文字</button>
+      <button type="button" data-cmd="upsize">文字を大きく</button>
       <button type="button" data-cmd="removeFormat">標準文字</button>
     </div>
     <div id="rule-edit-${key}" contenteditable="true" class="rule-edit"></div>
@@ -823,7 +824,7 @@ function renderConfirm(){
   el.innerHTML = `
     <div><strong>予選（${qList.length}問・制限${appData.qualifying.timeLimitMinutes}分・合格ライン${appData.qualifying.passThreshold}問正解・準決勝免除${appData.qualifying.semifinalExemptionEnabled?'ON':'OFF'}）</strong>
       <ol>${qList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
-    <div><strong>準決勝（登録${sfList.length}問・回答${appData.semifinal.timeLimitSeconds}秒・決勝進出者${appData.semifinal.finalistCount}名）</strong>
+    <div><strong>準決勝（登録${sfList.length}問・解答${appData.semifinal.timeLimitSeconds}秒・決勝進出者${appData.semifinal.finalistCount}名）</strong>
       <ol>${sfList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}（正解:${q.targetNumber}）</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
     <div><strong>決勝（${fnList.length}問・優勝に必要な正解数${appData.final.winCount}問）</strong>
       <ol>${fnList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
@@ -838,8 +839,8 @@ function freshGameState(){return {
   phase:'lobby',
   ruleKey:'qualifying',
   players:{},
-  qualifying:{startedAt:null, durationMs:0, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
-  semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedId:null, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
+  qualifying:{startedAt:null, durationMs:0, showSubmitStatus:false, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
+  semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedIds:[], roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
   final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
@@ -941,10 +942,7 @@ function sendStateSyncTo(playerId){
   if(phase==='rule'){
     const key=gameState.ruleKey||'qualifying';
     payload.ruleKey=key;
-    payload.ruleText=appData[key].ruleText;
-    payload.ruleImg=appData[key].ruleImg;
     if(key==='final'){
-      payload.finalists = gameState.final.finalists.map(id=>gameState.players[id]?gameState.players[id].name:'');
       payload.amFinalist = gameState.final.finalists.includes(playerId);
     }
   }
@@ -954,13 +952,11 @@ function sendStateSyncTo(playerId){
     payload.startedAt = gameState.qualifying.startedAt;
     payload.submitted = p.qualifying.submitted;
   }
-  else if(phase==='qualifying_reveal' || phase==='qualifying_results'){
+  else if(phase==='qualifying_ended' || phase==='qualifying_reveal' || phase==='qualifying_results'){
     payload.waiting=true; payload.message='結果発表中です。ホストの画面をご覧ください。';
   }
   else if(phase==='semifinal'){
     if(!gameState.semifinal.manualSelect){
-      const q = currentSemifinalQuestion();
-      payload.question = q ? {text:q.prompt.text, imgs:q.prompt.imgs} : null;
       payload.durationMs = gameState.semifinal.durationMs;
       payload.startedAt = gameState.semifinal.roundStartedAt;
       payload.alreadyAdvanced = p.semifinal.advanced;
@@ -976,17 +972,8 @@ function sendStateSyncTo(playerId){
     payload.message = gameState.semifinal.resultText || '結果発表中です。ホストの画面をご覧ください。';
   }
   else if(phase==='final'){
-    const q=currentFinalQuestion();
-    payload.question = q ? {text:q.prompt.text, imgs:q.prompt.imgs} : null;
     payload.amFinalist = gameState.final.finalists.includes(playerId);
     payload.locked = p.final.lockedUntilQuestionIdx!=null && p.final.lockedUntilQuestionIdx>=gameState.final.qIndex;
-    payload.scores = gameState.final.finalists.map(id=>({name:gameState.players[id]?gameState.players[id].name:'', count:gameState.players[id]?gameState.players[id].final.correctCount:0}));
-    payload.winCount = appData.final.winCount;
-    if(gameState.final.roundState==='explained'){
-      payload.explained = true;
-      payload.correctName = gameState.players[gameState.final.pendingCorrectPlayer] ? gameState.players[gameState.final.pendingCorrectPlayer].name : '';
-      payload.explanation = q ? {text:q.explanation.text, imgs:q.explanation.imgs} : null;
-    }
   }
   else if(phase==='champion'){
     payload.championName = gameState.players[gameState.final.championId] ? gameState.players[gameState.final.championId].name : '';
@@ -1004,6 +991,8 @@ const hostActions={
   'start-qualifying': ()=>{ startQualifying(); },
   'start-semifinal': ()=>{ startNextSemifinalQuestion(); },
   'force-end-qualifying': ()=>{ endQualifyingNow(); },
+  'toggle-qualifying-submit-status': ()=>{ gameState.qualifying.showSubmitStatus=!gameState.qualifying.showSubmitStatus; saveGameState(); renderHost(); },
+  'start-qualifying-reveal': ()=>{ startQualifyingReveal(); },
   'q-reveal-advance': ()=>{ advanceQualifyingReveal(); },
   'toggle-qualifying-answer': (arg)=>{
     const sep=arg.indexOf('|'); const pid=arg.slice(0,sep), qid=arg.slice(sep+1);
@@ -1015,6 +1004,7 @@ const hostActions={
   },
   'q-results-advance': ()=>{ advanceQualifyingResults(); },
   'force-end-semifinal': ()=>{ if(gameState.phase==='semifinal' && !gameState.semifinal.manualSelect) enterSemifinalReveal(); },
+  'toggle-semifinal-submit-status': ()=>{ gameState.semifinal.showSubmitStatus=!gameState.semifinal.showSubmitStatus; saveGameState(); renderHost(); },
   'sf-reveal-advance': ()=>{ advanceSemifinalReveal(); },
   'toggle-nearest': (arg)=>{
     const id=arg; const g=gameState.semifinal._nearestGroup||(gameState.semifinal._nearestGroup=[]);
@@ -1058,6 +1048,7 @@ function attachHostEnterKey(){
 function handleHostEnter(){
   if(!gameState) return;
   switch(gameState.phase){
+    case 'qualifying_ended': startQualifyingReveal(); break;
     case 'qualifying_reveal': advanceQualifyingReveal(); break;
     case 'qualifying_results': advanceQualifyingResults(); break;
     case 'semifinal_reveal': advanceSemifinalReveal(); break;
@@ -1081,6 +1072,7 @@ function renderHost(){
     case 'lobby': body=renderLobby(); break;
     case 'rule': body=renderRulePhase(); break;
     case 'qualifying': body=renderQualifyingMonitor(); break;
+    case 'qualifying_ended': body=renderQualifyingEnded(); break;
     case 'qualifying_reveal': body=renderQualifyingReveal(); break;
     case 'qualifying_results': body=renderQualifyingResults(); break;
     case 'semifinal': body=renderSemifinalPhase(); break;
@@ -1143,6 +1135,7 @@ function startQualifying(){
   Object.values(gameState.players).forEach(p=>{ p.qualifying={answers:{}, correctCount:0, submitted:false, submittedAtMs:null, passed:null, exempted:false, manualOverrides:{}}; });
   gameState.qualifying.startedAt=Date.now();
   gameState.qualifying.durationMs = appData.qualifying.timeLimitMinutes*60000;
+  gameState.qualifying.showSubmitStatus=false;
   gameState.phase='qualifying';
   saveGameState(); broadcastStateSync(); renderHost(); startQualifyingTimer();
 }
@@ -1163,6 +1156,17 @@ function endQualifyingNow(){
     if(!p.qualifying.submitted){ p.qualifying.submitted=true; p.qualifying.submittedAtMs=gameState.qualifying.durationMs; }
   });
   gradeQualifying();
+  gameState.phase='qualifying_ended';
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function renderQualifyingEnded(){
+  return `<div class="host-qualifying">
+    <h2>予選 解答受付終了</h2>
+    <p>全員の解答を締め切りました。</p>
+    <button data-action="start-qualifying-reveal" class="btn-primary">▶ 結果発表へ (Enter)</button>
+  </div>`;
+}
+function startQualifyingReveal(){
   gameState.phase='qualifying_reveal';
   gameState.qualifying.revealQIndex=0; gameState.qualifying.revealSubStep=0;
   saveGameState(); broadcastStateSync(); renderHost();
@@ -1207,25 +1211,37 @@ function gradeQualifying(){
 function renderQualifyingMonitor(){
   const players=Object.values(gameState.players);
   const remain = gameState.qualifying.startedAt+gameState.qualifying.durationMs-Date.now();
+  const show=!!gameState.qualifying.showSubmitStatus;
   return `<div class="host-qualifying">
     <h2>予選 解答受付中</h2>
     <div class="big-timer" id="qualifying-timer">${fmtTime(remain)}</div>
-    <div class="player-chips">${players.map(p=>`<span class="chip ${p.qualifying.submitted?'chip-good':''}">${escapeHtml(p.name)} ${p.qualifying.submitted?'✅':'…'}</span>`).join('')}</div>
-    <button data-action="force-end-qualifying" class="btn-mini">⏹ 今すぐ締め切る</button>
+    <div class="player-chips">${players.map(p=>`<span class="chip ${show&&p.qualifying.submitted?'chip-good':''}">${escapeHtml(p.name)}${show?(p.qualifying.submitted?' ✅':' …'):''}</span>`).join('')}</div>
+    <div class="row" style="justify-content:center">
+      <button data-action="toggle-qualifying-submit-status" class="btn-mini">${show?'🙈 提出状況を隠す':'👀 提出状況を表示'}</button>
+      <button data-action="force-end-qualifying" class="btn-mini">⏹ 今すぐ締め切る</button>
+    </div>
   </div>`;
 }
 
 /* ---- qualifying reveal (per question) ---- */
+function formatChoiceLabel(q,i){
+  const c=q.choices[i];
+  if(!c) return '選択肢'+(i+1);
+  const img = c.img?`<img class="ans-choice-thumb" src="${c.img}">`:'';
+  const text = c.text?escapeHtml(c.text):(q.layout==='image'?'':'選択肢'+(i+1));
+  if(q.layout==='image') return img || text || '選択肢'+(i+1);
+  return img + text;
+}
 function formatPlayerAnswer(q,p){
   const ans=p.qualifying.answers[q.id];
-  if(!ans) return '(未回答)';
-  if(q.type==='text') return escapeHtml(ans.text||'(未回答)') || '(未回答)';
-  const sel=ans.selected||[]; if(!sel.length) return '(未回答)';
-  return sel.map(i=> escapeHtml(q.choices[i]?q.choices[i].text:('選択肢'+(i+1)))).join('、');
+  if(!ans) return '(未解答)';
+  if(q.type==='text') return escapeHtml(ans.text||'(未解答)') || '(未解答)';
+  const sel=ans.selected||[]; if(!sel.length) return '(未解答)';
+  return sel.map(i=>formatChoiceLabel(q,i)).join('、');
 }
 function formatCorrectAnswer(q){
   if(q.type==='text') return escapeHtml((q.correctTexts||[]).filter(Boolean).join(' / '));
-  return (q.correctIndices||[]).map(i=> escapeHtml(q.choices[i]?q.choices[i].text:('選択肢'+(i+1)))).join('、');
+  return (q.correctIndices||[]).map(i=>formatChoiceLabel(q,i)).join('、');
 }
 function computeRunningCorrect(p, uptoIdx){
   const qs=currentQualifyingQuestions();
@@ -1237,14 +1253,22 @@ function renderQualifyingReveal(){
   const idx=gameState.qualifying.revealQIndex;
   const q=qs[idx];
   const sub=gameState.qualifying.revealSubStep;
-  const players=Object.entries(gameState.players);
+  let players=Object.entries(gameState.players);
+  if(idx>=1){
+    const joinOrder=new Map(players.map(([pid],i)=>[pid,i]));
+    players=players.slice().sort((a,b)=>{
+      const diff=computeRunningCorrect(b[1],idx-1)-computeRunningCorrect(a[1],idx-1);
+      return diff!==0 ? diff : joinOrder.get(a[0])-joinOrder.get(b[0]);
+    });
+  }
+  const questionHeader = `<div class="reveal-q">${renderImgList(q.prompt.imgs,'q-img')}<div class="q-text-big">${escapeHtml(q.prompt.text)}</div></div>`;
   let content='';
   if(sub===0){
-    content = `<div class="reveal-q">${renderImgList(q.prompt.imgs,'q-img')}<div class="q-text-big">${escapeHtml(q.prompt.text)}</div></div>`;
+    content = questionHeader;
   } else if(sub===1){
-    content = `<div class="reveal-answers">${players.map(([pid,p])=>`<div class="ans-row"><span class="ans-name">${escapeHtml(p.name)}</span><span class="ans-val">${formatPlayerAnswer(q,p)}</span></div>`).join('')}</div>`;
+    content = questionHeader + `<div class="reveal-answers">${players.map(([pid,p])=>`<div class="ans-row"><span class="ans-name">${escapeHtml(p.name)}</span><span class="ans-val">${formatPlayerAnswer(q,p)}</span></div>`).join('')}</div>`;
   } else {
-    content = `<div class="reveal-correct"><div class="correct-label">正解: ${formatCorrectAnswer(q)}</div>
+    content = questionHeader + `<div class="reveal-correct"><div class="correct-label">正解: ${formatCorrectAnswer(q)}</div>
       <div class="reveal-answers">${players.map(([pid,p])=>{
         const ok=isCorrectEffective(q,p);
         return `<div class="ans-row ${ok?'ans-correct':''}"><span class="ans-name">${escapeHtml(p.name)} ${ok?'⭕':''}</span><span class="ans-score">累計 ${computeRunningCorrect(p,idx)}問正解</span><button class="btn-mini" data-action="toggle-qualifying-answer" data-arg="${pid}|${q.id}">${ok?'❌不正解に直す':'⭕正解に直す'}</button></div>`;
@@ -1331,13 +1355,12 @@ function finishQualifyingResults(){
 
 /* ---- semifinal ---- */
 function setupSemifinal(){
-  const exemptedEntry=Object.entries(gameState.players).find(([id,p])=>p.qualifying.exempted);
-  const exemptedId=exemptedEntry?exemptedEntry[0]:null;
-  const candidates=Object.entries(gameState.players).filter(([id,p])=>p.qualifying.passed && id!==exemptedId).map(([id])=>id);
-  const advancedOrder = exemptedId?[exemptedId]:[];
+  const exemptedIds=Object.entries(gameState.players).filter(([id,p])=>p.qualifying.exempted).map(([id])=>id);
+  const candidates=Object.entries(gameState.players).filter(([id,p])=>p.qualifying.passed && !exemptedIds.includes(id)).map(([id])=>id);
+  const advancedOrder = exemptedIds.slice();
   Object.entries(gameState.players).forEach(([id,p])=>{ p.semifinal={advanced:advancedOrder.includes(id), lastAnswer:null}; });
   const finalistCount=appData.semifinal.finalistCount;
-  gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:finalistCount, exemptedId, roundStartedAt:null, durationMs:0, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
+  gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:finalistCount, exemptedIds, roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
   if(advancedOrder.length>=finalistCount || candidates.length===0){ startFinalIntro(); return; }
   gameState.phase='rule'; gameState.ruleKey='semifinal';
   saveGameState(); broadcastStateSync(); renderHost();
@@ -1354,6 +1377,7 @@ function startNextSemifinalQuestion(){
   Object.values(gameState.players).forEach(p=>{ p.semifinal.lastAnswer=null; });
   gameState.semifinal.roundStartedAt=Date.now();
   gameState.semifinal.durationMs=appData.semifinal.timeLimitSeconds*1000;
+  gameState.semifinal.showSubmitStatus=false;
   gameState.phase='semifinal';
   saveGameState(); broadcastStateSync(); renderHost(); startSemifinalTimer();
 }
@@ -1379,14 +1403,18 @@ function renderSemifinalPhase(){
   const advancedNames=gameState.semifinal.advancedOrder.map(id=>gameState.players[id]?gameState.players[id].name:'');
   const targets=gameState.semifinal.targets;
   const players=Object.entries(gameState.players).filter(([id])=>!gameState.semifinal.advancedOrder.includes(id));
+  const show=!!gameState.semifinal.showSubmitStatus;
   return `<div class="host-semifinal">
     <h2>準決勝 第${gameState.semifinal.roundIndex+1}問</h2>
     <div class="advanced-badges">${advancedNames.length? '勝ち抜け: '+advancedNames.map(n=>`<span class="tag tag-pass">${escapeHtml(n)}</span>`).join(''): ''}</div>
     ${renderImgList(q.prompt.imgs,'q-img')}
     <div class="q-text-big">${escapeHtml(q.prompt.text)}</div>
     <div class="big-timer" id="semifinal-timer">${fmtTime(remain)}</div>
-    <div class="player-chips">${players.map(([id,p])=>`<span class="chip ${p.semifinal.lastAnswer!=null?'chip-good':''} ${targets.includes(id)?'':'chip-ref'}">${escapeHtml(p.name)}${targets.includes(id)?'':'(参考)'} ${p.semifinal.lastAnswer!=null?'✅':'…'}</span>`).join('')}</div>
-    <button data-action="force-end-semifinal" class="btn-mini">⏹ 今すぐ締め切る</button>
+    <div class="player-chips">${players.map(([id,p])=>`<span class="chip ${show&&p.semifinal.lastAnswer!=null?'chip-good':''} ${targets.includes(id)?'':'chip-ref'}">${escapeHtml(p.name)}${targets.includes(id)?'':'(参考)'}${show?(p.semifinal.lastAnswer!=null?' ✅':' …'):''}</span>`).join('')}</div>
+    <div class="row" style="justify-content:center">
+      <button data-action="toggle-semifinal-submit-status" class="btn-mini">${show?'🙈 提出状況を隠す':'👀 提出状況を表示'}</button>
+      <button data-action="force-end-semifinal" class="btn-mini">⏹ 今すぐ締め切る</button>
+    </div>
   </div>`;
 }
 function semifinalManualRequiredPicks(){
@@ -1436,7 +1464,7 @@ function computeSemifinalResult(){
   });
   gameState.semifinal._nearestGroup=group;
   const needed=gameState.semifinal.neededTotal-gameState.semifinal.advancedOrder.length;
-  if(group.length===0){ gameState.semifinal.resultText='対象者に有効な回答がありませんでした。次の問題に進みます。'; }
+  if(group.length===0){ gameState.semifinal.resultText='対象者に有効な解答がありませんでした。次の問題に進みます。'; }
   else if(group.length<=needed){
     gameState.semifinal.resultText = group.map(id=>gameState.players[id].name).join('、')+'さんが勝ち抜けです！';
   } else {
@@ -1458,12 +1486,12 @@ function renderSemifinalReveal(){
   const stage=gameState.semifinal.revealStage;
   let body='';
   if(stage==='answers'){
-    body=`<div class="reveal-answers">${players.map(([id,p])=>`<div class="ans-row ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${targets.includes(id)?'':'（参考）'}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未回答)'}</span></div>`).join('')}</div>`;
+    body=`<div class="reveal-answers">${players.map(([id,p])=>`<div class="ans-row ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${targets.includes(id)?'':'（参考）'}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span></div>`).join('')}</div>`;
   } else {
     body=`<div class="reveal-correct"><div class="correct-label">正解: ${q.targetNumber}</div>
       <div class="reveal-answers">${players.map(([id,p])=>{
         const isNearest = (gameState.semifinal._nearestGroup||[]).includes(id);
-        return `<div class="ans-row ${isNearest?'ans-correct':''} ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${isNearest?' ⭐':''}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未回答)'}</span><button class="btn-mini" data-action="toggle-nearest" data-arg="${id}">${isNearest?'対象から外す':'対象に入れる'}</button></div>`;
+        return `<div class="ans-row ${isNearest?'ans-correct':''} ${targets.includes(id)?'':'ans-ref'}"><span class="ans-name">${escapeHtml(p.name)}${isNearest?' ⭐':''}</span><span class="ans-val">${p.semifinal.lastAnswer!=null?p.semifinal.lastAnswer:'(未解答)'}</span><button class="btn-mini" data-action="toggle-nearest" data-arg="${id}">${isNearest?'対象から外す':'対象に入れる'}</button></div>`;
       }).join('')}</div>
       <div class="result-text">${escapeHtml(semifinalPreviewText())}</div>
     </div>`;
@@ -1667,13 +1695,8 @@ function renderParticipant(){
       root.innerHTML=`<div class="p-center"><h2>${escapeHtml(payload.eventTitle||'')}</h2><p>${escapeHtml(myName)}さん、開始までお待ちください。</p></div>`; break;
     case 'rule': {
       const key = payload.ruleKey||'qualifying';
-      const titleMap = {overall:'大会全体のルール', qualifying:'予選のルール', semifinal:'準決勝のルール', final:'決勝のルール'};
-      const nextMap = {overall:'まもなく予選のルール説明があります。', qualifying:'まもなく予選が始まります。', semifinal:'まもなく準決勝が始まります。', final:'まもなく決勝が始まります。'};
-      let finalistsHtml='';
-      if(key==='final'){
-        finalistsHtml = `<h3>決勝進出者</h3><p>${(payload.finalists||[]).map(n=>escapeHtml(n)).join('、')}</p>${payload.amFinalist?'<p class="tag tag-pass">あなたも決勝進出です！</p>':'<p>応援よろしくお願いします！</p>'}`;
-      }
-      root.innerHTML=`<div class="p-rule"><h2>${titleMap[key]}</h2>${finalistsHtml}${payload.ruleImg?`<img class="rule-img" src="${payload.ruleImg}">`:''}${payload.ruleText||''}<p class="muted">${nextMap[key]}</p></div>`;
+      const finalNote = key==='final' ? (payload.amFinalist?'<p class="tag tag-pass">あなたも決勝進出です！</p>':'<p>応援よろしくお願いします！</p>') : '';
+      root.innerHTML=`<div class="p-center"><h2>ホストの画面をご覧ください</h2>${finalNote}</div>`;
       break;
     }
     case 'qualifying':
@@ -1748,7 +1771,7 @@ function attachParticipantQualifyingEvents(){
       const pos=ans.selected.indexOf(ci);
       if(pos>=0){ ans.selected.splice(pos,1); }
       else {
-        if(ans.selected.length>=q.selectCount){ flashMessage('最大'+q.selectCount+'個まで選択できます'); return; }
+        while(ans.selected.length>=q.selectCount){ ans.selected.shift(); }
         ans.selected.push(ci);
       }
       qualifyingLocal.answers[qid]=ans;
@@ -1775,7 +1798,7 @@ function confirmSubmitQualifying(){
     if(empty) unanswered.push(i+1);
   });
   let msg='提出します。よろしいですか？';
-  if(unanswered.length) msg = '第'+unanswered.join('、')+'問が未回答です。このまま提出しますか？';
+  if(unanswered.length) msg = '第'+unanswered.join('、')+'問が未解答です。このまま提出しますか？';
   if(confirm(msg)){ doSubmitQualifying(); }
 }
 function doSubmitQualifying(){
@@ -1793,24 +1816,23 @@ function forceSubmitQualifying(){
 function renderSemifinalParticipant(payload){
   const root=document.getElementById('participant-root');
   if(payload.alreadyAdvanced){
-    root.innerHTML = `<div class="p-center"><p class="tag tag-pass">決勝進出決定！</p><p>${escapeHtml(payload.question?payload.question.text:'')}</p><p>他の対象者の結果をお待ちください。</p></div>`;
+    root.innerHTML = `<div class="p-center"><p class="tag tag-pass">決勝進出決定！</p><p>ホストの画面をご覧ください。</p></div>`;
     return;
   }
   if(payload.submitted){
-    root.innerHTML = `<div class="p-center"><h2>回答しました</h2><p>結果発表をお待ちください。</p></div>`;
+    root.innerHTML = `<div class="p-center"><h2>解答しました</h2><p>結果発表をお待ちください。</p></div>`;
     return;
   }
   root.innerHTML = `<div class="p-semifinal">
     <div class="p-timer-bar"><span id="p-timer">--:--</span></div>
-    ${!payload.isTarget?'<p class="tag tag-warn">あなたは今回対象外です（参考回答）</p>':''}
-    ${renderImgList(payload.question?payload.question.imgs:null,'p-q-img')}
-    <div class="p-q-text">${escapeHtml(payload.question?payload.question.text:'')}</div>
+    ${!payload.isTarget?'<p class="tag tag-warn">あなたは今回対象外です（参考解答）</p>':''}
     <input type="number" id="sf-input" placeholder="予想する数字"><br>
     <button id="btn-submit-sf">送信</button>
   </div>`;
   document.getElementById('btn-submit-sf').addEventListener('click', ()=>{
     const v=document.getElementById('sf-input').value;
     if(v===''){ alert('数字を入力してください'); return; }
+    if(!confirm(v+'で送信します。よろしいですか？')) return;
     if(myConn&&myConn.open) myConn.send({type:'semifinal_answer', playerId:myPlayerId, value:Number(v)});
     payload.submitted=true; renderSemifinalParticipant(payload);
   });
@@ -1828,22 +1850,8 @@ function startSemifinalParticipantTimer(payload){
 /* ---- participant: final ---- */
 function renderFinalParticipant(payload){
   const root=document.getElementById('participant-root');
-  const winCount=payload.winCount||3;
-  const scoresHtml=(payload.scores||[]).map(s=>`<div class="final-score-row">${escapeHtml(s.name)}: ${s.count}/${winCount}</div>`).join('');
-  let explHtml='';
-  if(payload.explained){
-    explHtml = `<div class="correct-label">${escapeHtml(payload.correctName||'')}さん 正解！</div>
-      <h3>解説</h3>
-      ${renderImgList(payload.explanation?payload.explanation.imgs:null,'p-q-img')}
-      <div class="p-q-text">${escapeHtml(payload.explanation?payload.explanation.text:'')}</div>`;
-  }
-  root.innerHTML = `<div class="p-final">
-    ${renderImgList(payload.question?payload.question.imgs:null,'p-q-img')}
-    <div class="p-q-text">${escapeHtml(payload.question?payload.question.text:'')}</div>
-    ${payload.amFinalist? (payload.locked? '<p class="tag tag-fail">解答権なし</p>' : '<p class="tag tag-pass">解答権あり</p>') : ''}
-    <div class="final-scores">${scoresHtml}</div>
-    ${explHtml}
-  </div>`;
+  const statusHtml = payload.amFinalist? (payload.locked? '<p class="tag tag-fail">解答権なし</p>' : '<p class="tag tag-pass">解答権あり</p>') : '';
+  root.innerHTML = `<div class="p-center"><h2>ホストの画面をご覧ください</h2>${statusHtml}</div>`;
 }
 </script>
 </body>
