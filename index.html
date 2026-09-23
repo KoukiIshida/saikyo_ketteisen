@@ -20,7 +20,7 @@ button{cursor:pointer; font-family:inherit;}
 img{max-width:100%;}
 
 /* ---- Admin ---- */
-#page-admin.active{background:#f2f3f7; min-height:100vh; padding:16px;}
+#page-admin.active,#page-event-picker.active{background:#f2f3f7; min-height:100vh; padding:16px;}
 .admin-wrap{max-width:900px; margin:0 auto;}
 .card{background:#fff; border-radius:10px; padding:16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.1);}
 .card h2{margin-top:0;}
@@ -28,6 +28,7 @@ img{max-width:100%;}
 input[type=text], input[type=number], textarea, select{padding:8px; border:1px solid #ccc; border-radius:6px; font-size:14px;}
 textarea{width:100%; font-family:inherit;}
 .btn-mini{padding:6px 10px; border:1px solid #999; background:#fff; border-radius:6px; font-size:13px;}
+a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .btn-primary{padding:12px 22px; border:none; background:var(--accent); color:#fff; border-radius:8px; font-size:16px; font-weight:bold;}
 .btn-primary:disabled{background:#aaa; cursor:not-allowed;}
 .btn-good{border-color:var(--good); color:var(--good);}
@@ -139,8 +140,21 @@ textarea{width:100%; font-family:inherit;}
 </head>
 <body>
 
+<div id="page-event-picker" class="page">
+  <div class="admin-wrap">
+    <h1>大会一覧</h1>
+    <section class="card">
+      <div id="event-list"></div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" id="btn-new-event" class="btn-primary">＋ 新しい大会を作成</button>
+      </div>
+    </section>
+  </div>
+</div>
+
 <div id="page-admin" class="page">
   <div class="admin-wrap">
+    <p><a href="?mode=admin" id="back-to-picker-link">← 大会一覧に戻る</a></p>
     <h1>大会管理画面</h1>
     <section class="card">
       <h2>大会設定</h2>
@@ -220,10 +234,13 @@ textarea{width:100%; font-family:inherit;}
 <script>
 /* ---------- constants ---------- */
 const DB_NAME='saikyou_db', STORE_NAME='kv';
-const LS_ROOM='saikyou_room', LS_STATE='saikyou_gamestate';
+const EVENT_REGISTRY_KEY='__events';
 const SS_PID='saikyou_pid', SS_NAME='saikyou_name';
 const params=new URLSearchParams(location.search);
 const MODE = params.get('mode')==='admin' ? 'admin' : (params.has('room') ? 'participant' : 'host');
+const EVENT_ID = params.get('event') || 'default';
+const ADMIN_SHOW_PICKER = MODE==='admin' && !params.has('event');
+const LS_ROOM='saikyou_room:'+EVENT_ID, LS_STATE='saikyou_gamestate:'+EVENT_ID;
 
 /* ---------- utils ---------- */
 function uid(p){return (p||'id')+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
@@ -253,8 +270,35 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 
 /* ---------- IndexedDB ---------- */
 function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{r.result.createObjectStore(STORE_NAME);};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-async function idbGet(){const db=await openDb();return new Promise((res,rej)=>{const tx=db.transaction(STORE_NAME,'readonly');const rq=tx.objectStore(STORE_NAME).get('appData');rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error);});}
-async function idbSet(data){const db=await openDb();return new Promise((res,rej)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).put(data,'appData');tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function idbGetRaw(key){const db=await openDb();return new Promise((res,rej)=>{const tx=db.transaction(STORE_NAME,'readonly');const rq=tx.objectStore(STORE_NAME).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error);});}
+async function idbSetRaw(key,data){const db=await openDb();return new Promise((res,rej)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).put(data,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function idbDeleteRaw(key){const db=await openDb();return new Promise((res,rej)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function idbGet(){ return idbGetRaw('appData:'+EVENT_ID); }
+async function idbSet(data){ return idbSetRaw('appData:'+EVENT_ID, data); }
+async function migrateLegacyAppDataKey(){
+  if(EVENT_ID!=='default') return;
+  const existing = await idbGetRaw('appData:default');
+  if(existing) return;
+  const legacy = await idbGetRaw('appData');
+  if(legacy){ await idbSetRaw('appData:default', legacy); }
+}
+async function loadEventRegistry(){ const list=await idbGetRaw(EVENT_REGISTRY_KEY); return Array.isArray(list)?list:[]; }
+async function saveEventRegistry(list){ await idbSetRaw(EVENT_REGISTRY_KEY, list); }
+async function upsertEventRegistry(id, title){
+  const list=await loadEventRegistry();
+  const i=list.findIndex(e=>e.id===id);
+  const entry={id, title, updatedAt:Date.now()};
+  if(i>=0) list[i]=entry; else list.push(entry);
+  await saveEventRegistry(list);
+}
+async function removeFromEventRegistry(id){
+  const list=(await loadEventRegistry()).filter(e=>e.id!==id);
+  await saveEventRegistry(list);
+}
+function slugify(text){
+  const base=(text||'').trim().toLowerCase().replace(/[^a-z0-9぀-ヿ一-鿿]+/g,'-').replace(/^-+|-+$/g,'');
+  return (base||'event')+'-'+Math.random().toString(36).slice(2,7);
+}
 
 /* ---------- data model ---------- */
 function defaultAppData(){return {
@@ -313,6 +357,7 @@ async function persistAppData(){
   showSaveOverlay('保存中…');
   setSaveProgress(40);
   await idbSet(appData);
+  await upsertEventRegistry(EVENT_ID, appData.eventTitle);
   setSaveProgress(100,'保存しました');
   setTimeout(hideSaveOverlay,400);
 }
@@ -335,7 +380,22 @@ function mergeLoadedAppData(loaded){
   merged.final.questions.forEach(migrateFinalQuestion);
   return merged;
 }
+async function ensureDefaultRegistered(){
+  const data = await idbGetRaw('appData:default');
+  if(!data) return;
+  const list = await loadEventRegistry();
+  if(!list.find(e=>e.id==='default')){
+    await upsertEventRegistry('default', data.eventTitle || '既存の大会');
+  }
+}
 async function init(){
+  await migrateLegacyAppDataKey();
+  await ensureDefaultRegistered();
+  if(ADMIN_SHOW_PICKER){
+    document.getElementById('page-event-picker').classList.add('active');
+    initEventPicker();
+    return;
+  }
   const loaded=await idbGet();
   if(loaded){ appData=mergeLoadedAppData(loaded); }
   document.title = appData.eventTitle || '最強決定戦';
@@ -344,12 +404,66 @@ async function init(){
   else { document.getElementById('page-host').classList.add('active'); initHost(); }
 }
 
+/* ================= EVENT PICKER ================= */
+async function initEventPicker(){
+  await renderEventPicker();
+  document.getElementById('btn-new-event').addEventListener('click', async ()=>{
+    const title=prompt('大会名を入力してください（例：〇〇最強決定戦）','○○最強決定戦');
+    if(title==null) return;
+    const id=slugify(title);
+    const data=defaultAppData();
+    data.eventTitle=title||data.eventTitle;
+    await idbSetRaw('appData:'+id, data);
+    await upsertEventRegistry(id, data.eventTitle);
+    location.href='?mode=admin&event='+encodeURIComponent(id);
+  });
+}
+async function renderEventPicker(){
+  const list=await loadEventRegistry();
+  list.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const el=document.getElementById('event-list');
+  el.innerHTML = list.length ? list.map(e=>`
+    <div class="q-card">
+      <div class="q-head">
+        <span class="q-title-preview">${escapeHtml(e.title||e.id)}</span>
+        <a class="btn-mini" href="?mode=admin&event=${encodeURIComponent(e.id)}">編集</a>
+        <a class="btn-mini" href="?event=${encodeURIComponent(e.id)}" target="_blank">▶ ホスト画面</a>
+        <button type="button" class="btn-mini" data-action="duplicate-event" data-arg="${e.id}">複製</button>
+        <button type="button" class="btn-mini" data-action="delete-event" data-arg="${e.id}">🗑 削除</button>
+      </div>
+    </div>`).join('') : '<p class="muted">まだ大会がありません。「＋ 新しい大会を作成」から始めてください。</p>';
+  el.querySelectorAll('[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id=btn.dataset.arg;
+      if(btn.dataset.action==='delete-event'){
+        if(!confirm('この大会のデータを削除しますか？（元に戻せません）')) return;
+        await idbDeleteRaw('appData:'+id);
+        await removeFromEventRegistry(id);
+        localStorage.removeItem('saikyou_room:'+id); localStorage.removeItem('saikyou_gamestate:'+id);
+        await renderEventPicker();
+      } else if(btn.dataset.action==='duplicate-event'){
+        const src=await idbGetRaw('appData:'+id);
+        if(!src) return;
+        const title=prompt('複製後の大会名を入力してください', (src.eventTitle||'')+' コピー');
+        if(title==null) return;
+        const newId=slugify(title);
+        const copy=JSON.parse(JSON.stringify(src));
+        copy.eventTitle=title||copy.eventTitle;
+        await idbSetRaw('appData:'+newId, copy);
+        await upsertEventRegistry(newId, copy.eventTitle);
+        location.href='?mode=admin&event='+encodeURIComponent(newId);
+      }
+    });
+  });
+}
+
 /* ================= ADMIN ================= */
 let expandedIds=new Set();
 
 function initAdmin(){
+  upsertEventRegistry(EVENT_ID, appData.eventTitle);
   document.getElementById('f-title').value=appData.eventTitle;
-  document.getElementById('f-title').addEventListener('change',e=>{appData.eventTitle=e.target.value;});
+  document.getElementById('f-title').addEventListener('change',e=>{appData.eventTitle=e.target.value; upsertEventRegistry(EVENT_ID, appData.eventTitle);});
 
   setupRuleEditor('qualifying');
   setupRuleEditor('semifinal');
@@ -374,7 +488,7 @@ function initAdmin(){
   document.getElementById('fn-add').addEventListener('click',()=>{appData.final.questions.push(makeFinalQ()); renderFnList();});
 
   document.getElementById('btn-save').addEventListener('click', async ()=>{ await persistAppData(); });
-  document.getElementById('btn-open-host').addEventListener('click', async ()=>{ await persistAppData(); window.open(location.pathname,'_blank'); });
+  document.getElementById('btn-open-host').addEventListener('click', async ()=>{ await persistAppData(); window.open(location.pathname+'?event='+encodeURIComponent(EVENT_ID),'_blank'); });
   document.getElementById('btn-export').addEventListener('click', exportAppData);
   document.getElementById('btn-import').addEventListener('click', ()=>document.getElementById('import-file-input').click());
   document.getElementById('import-file-input').addEventListener('change', importAppDataFile);
@@ -874,7 +988,7 @@ function sendStateSyncTo(playerId){
 
 /* ---- host actions delegation ---- */
 const hostActions={
-  'open-admin': ()=>{ window.open(location.pathname+'?mode=admin','_blank'); },
+  'open-admin': ()=>{ window.open(location.pathname+'?mode=admin&event='+encodeURIComponent(EVENT_ID),'_blank'); },
   'reset-room': ()=>{ if(confirm('新しい部屋を作り直しますか？進行状況はリセットされます。')){ localStorage.removeItem(LS_STATE); localStorage.removeItem(LS_ROOM); location.reload(); } },
   'restart-all': ()=>{ if(confirm('最初からやり直しますか？（全員の進行状況がリセットされます）')){ resetWholeGame(); } },
   'start-rule': ()=>{ gameState.phase='rule'; gameState.ruleKey='qualifying'; saveGameState(); broadcastStateSync(); renderHost(); },
