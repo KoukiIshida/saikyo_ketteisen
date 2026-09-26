@@ -975,7 +975,7 @@ function freshGameState(){return {
   players:{},
   qualifying:{startedAt:null, durationMs:0, showSubmitStatus:false, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
   semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedIds:[], roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
-  wildcard:{ qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:28 },
+  wildcard:{ qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:18 },
   final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
@@ -1181,6 +1181,13 @@ const hostActions={
     saveGameState(); renderHost();
   },
   'wildcard-pick': (arg)=>{ if(gameState.wildcard.eliminated.includes(arg)) return; gameState.wildcard.winnerId=arg; saveGameState(); renderHost(); },
+  'wildcard-note-insert': (val)=>{
+    const current=gameState.wildcard.liveNote||'';
+    gameState.wildcard.liveNote = current && !current.endsWith('\n') ? current+'\n'+val : current+val;
+    saveGameState();
+    const ta=document.getElementById('wildcard-note');
+    if(ta){ ta.value=gameState.wildcard.liveNote; ta.scrollTop=ta.scrollHeight; ta.focus(); }
+  },
   'wildcard-confirm': ()=>{ confirmWildcardSelect(); },
   'wildcard-confirm-none': ()=>{ confirmWildcardSelectNone(); },
   'final-start': ()=>{ startFinalRound(); },
@@ -1769,7 +1776,7 @@ function advanceSemifinalReveal(){
 function includedWildcardQuestions(){ return appData.wildcard.questions.filter(q=>q.include); }
 function currentWildcardQuestion(){ return includedWildcardQuestions()[gameState.wildcard.qIndex] || null; }
 function enterWildcard(){
-  gameState.wildcard = { qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:28 };
+  gameState.wildcard = { qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:18 };
   gameState.phase='wildcard_surprise';
   saveGameState(); broadcastStateSync(); renderHost();
 }
@@ -1837,8 +1844,8 @@ function renderWildcardPhase(){
   const idx=gameState.wildcard.qIndex;
   const rows=wildcardEligibleRows();
   const eligibleCount=rows.filter(r=>r.eligible).length;
-  const noteSize=gameState.wildcard.liveNoteSize||28;
-  const heading = q ? `敗者復活戦 第${idx+1}問${idx===qs.length-1?'（最終問題）':''}` : '敗者復活戦 - 進出者を選択';
+  const noteSize=gameState.wildcard.liveNoteSize||18;
+  const heading = q ? (qs.length<=1 ? '敗者復活戦' : `敗者復活戦 第${idx+1}問${idx===qs.length-1?'（最終問題）':''}`) : '敗者復活戦 - 進出者を選択';
   const listHtml = eligibleCount===0
     ? `<p>対象者がいません。</p><div class="manual-list">${buildWildcardCandidateListHTML(false)}</div>`
     : `<div class="manual-list">${buildWildcardCandidateListHTML(true)}</div>`;
@@ -1849,6 +1856,13 @@ function renderWildcardPhase(){
   return `<div class="host-final">
     <h2>${heading}</h2>
     <div class="wildcard-note-area">
+      <div class="row wildcard-judge-row" style="justify-content:center">
+        <button type="button" class="btn-mini" data-action="wildcard-note-insert" data-arg="はい">はい</button>
+        <button type="button" class="btn-mini" data-action="wildcard-note-insert" data-arg="たぶんはい">たぶんはい</button>
+        <button type="button" class="btn-mini" data-action="wildcard-note-insert" data-arg="わからない">わからない</button>
+        <button type="button" class="btn-mini" data-action="wildcard-note-insert" data-arg="たぶんいいえ">たぶんいいえ</button>
+        <button type="button" class="btn-mini" data-action="wildcard-note-insert" data-arg="いいえ">いいえ</button>
+      </div>
       <div class="row" style="justify-content:center">
         <label>文字サイズ
           <select id="wildcard-note-size">
