@@ -36,6 +36,9 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .sticky-actions{position:sticky; bottom:0; background:#f2f3f7; padding:10px 0;}
 .rich-toolbar button{margin-right:4px;}
 .rule-edit{border:1px solid #ccc; border-radius:6px; min-height:100px; padding:10px; background:#fff;}
+.rule-slide-card{border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; background:#fafbfe;}
+.rule-slide-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+.rule-group-block{margin-bottom:10px;}
 .thumb{max-width:160px; max-height:120px; display:block; margin-top:6px; border-radius:6px; cursor:zoom-in;}
 .thumb-sm{max-width:60px; max-height:60px; border-radius:4px;}
 .prompt-img-editor{flex-wrap:wrap;}
@@ -122,8 +125,12 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .final-name{flex:1; text-align:left; font-size:18px;}
 .final-count{color:#9aa;}
 .champion-name{font-size:44px; color:#ffd166; font-weight:bold; margin-top:20px;}
-.manual-list{max-width:400px; margin:12px auto; text-align:left;}
+.manual-list{max-width:480px; margin:12px auto; text-align:left;}
 .manual-row{display:block; padding:6px 0;}
+.wildcard-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #333;}
+.wildcard-row.ineligible{opacity:.55;}
+.wildcard-note-area{max-width:700px; margin:16px auto;}
+.wildcard-note{width:100%; min-height:180px; padding:12px; border-radius:8px; border:1px solid #445; background:#1b1f2a; color:#fff; font-family:inherit; resize:vertical;}
 
 /* ---- Participant ---- */
 #page-participant.active{background:#f5f6fa; min-height:100vh; font-size:15px;}
@@ -197,6 +204,14 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
       </div>
       <div id="sf-list"></div>
       <button type="button" id="sf-add" class="btn-mini">＋ 問題を追加</button>
+    </section>
+    <section class="card">
+      <h2>敗者復活戦設定</h2>
+      <p class="muted">準決勝と決勝の間に挟まる、システム外（画面外）で行う1名だけの復活枠です。決勝進出していない人・予選最下位でない人の中からホストが手動で1名選びます。</p>
+      <h3>敗者復活戦のルール説明</h3>
+      <div id="rule-editor-wildcard"></div>
+      <div id="wc-list"></div>
+      <button type="button" id="wc-add" class="btn-mini">＋ 問題を追加</button>
     </section>
     <section class="card">
       <h2>決勝設定（早押し）</h2>
@@ -316,13 +331,26 @@ function slugify(text){
 }
 
 /* ---------- data model ---------- */
+function defaultRuleSlides(){ return [{img:null, groups:['']}]; }
 function defaultAppData(){return {
   eventTitle:'○○最強決定戦',
-  overall:{ ruleText:'', ruleImg:null },
-  qualifying:{ timeLimitMinutes:5, passThreshold:3, semifinalExemptionEnabled:true, ruleText:'', ruleImg:null, questions:[] },
-  semifinal:{ timeLimitSeconds:30, finalistCount:3, ruleText:'', ruleImg:null, questions:[] },
-  final:{ winCount:3, ruleText:'', ruleImg:null, questions:[] }
+  overall:{ ruleSlides:defaultRuleSlides() },
+  qualifying:{ timeLimitMinutes:5, passThreshold:3, semifinalExemptionEnabled:true, ruleSlides:defaultRuleSlides(), questions:[] },
+  semifinal:{ timeLimitSeconds:30, finalistCount:3, ruleSlides:defaultRuleSlides(), questions:[] },
+  wildcard:{ ruleSlides:defaultRuleSlides(), questions:[] },
+  final:{ winCount:3, ruleSlides:defaultRuleSlides(), questions:[] }
 };}
+function migrateRuleSlides(mergedSection, loadedSection){
+  loadedSection = loadedSection || {};
+  if(Array.isArray(loadedSection.ruleSlides) && loadedSection.ruleSlides.length){
+    mergedSection.ruleSlides = loadedSection.ruleSlides;
+  } else if(loadedSection.ruleText || loadedSection.ruleImg){
+    mergedSection.ruleSlides = [{img:loadedSection.ruleImg||null, groups:[loadedSection.ruleText||'']}];
+  } else {
+    mergedSection.ruleSlides = defaultRuleSlides();
+  }
+  delete mergedSection.ruleText; delete mergedSection.ruleImg;
+}
 function makeQA(type){return {id:uid('q'), prompt:{text:'',imgs:[]}, type:type||'text', correctTexts:[''], choices:[{text:'',img:null},{text:'',img:null}], layout:'text', correctIndices:[], selectCount:1, include:true, done:false};}
 function makeSF(){return {id:uid('s'), prompt:{text:'',imgs:[]}, targetNumber:0, include:true, done:false};}
 function migrateQuestionPrompt(q){
@@ -386,14 +414,21 @@ function mergeLoadedAppData(loaded){
   merged.overall=Object.assign({},d.overall, loaded.overall||{});
   merged.qualifying=Object.assign({},d.qualifying, loaded.qualifying||{});
   merged.semifinal=Object.assign({},d.semifinal, loaded.semifinal||{});
+  merged.wildcard=Object.assign({},d.wildcard, loaded.wildcard||{});
   merged.final=Object.assign({},d.final, loaded.final||{});
-  if((loaded.ruleText || loaded.ruleImg) && !merged.qualifying.ruleText && !merged.qualifying.ruleImg){
-    merged.qualifying.ruleText = loaded.ruleText||'';
-    merged.qualifying.ruleImg = loaded.ruleImg||null;
-  }
   delete merged.ruleText; delete merged.ruleImg;
+  const qSrc=Object.assign({}, loaded.qualifying||{});
+  if(!qSrc.ruleSlides && !qSrc.ruleText && !qSrc.ruleImg && (loaded.ruleText||loaded.ruleImg)){
+    qSrc.ruleText=loaded.ruleText; qSrc.ruleImg=loaded.ruleImg;
+  }
+  migrateRuleSlides(merged.overall, loaded.overall);
+  migrateRuleSlides(merged.qualifying, qSrc);
+  migrateRuleSlides(merged.semifinal, loaded.semifinal);
+  migrateRuleSlides(merged.wildcard, loaded.wildcard);
+  migrateRuleSlides(merged.final, loaded.final);
   merged.qualifying.questions.forEach(migrateQuestionPrompt);
   merged.semifinal.questions.forEach(migrateQuestionPrompt);
+  merged.wildcard.questions.forEach(migrateFinalQuestion);
   merged.final.questions.forEach(migrateFinalQuestion);
   return merged;
 }
@@ -482,10 +517,7 @@ function initAdmin(){
   document.getElementById('f-title').value=appData.eventTitle;
   document.getElementById('f-title').addEventListener('change',e=>{appData.eventTitle=e.target.value; upsertEventRegistry(EVENT_ID, appData.eventTitle);});
 
-  setupRuleEditor('overall');
-  setupRuleEditor('qualifying');
-  setupRuleEditor('semifinal');
-  setupRuleEditor('final');
+  ['overall','qualifying','semifinal','wildcard','final'].forEach(k=>{ renderRuleSlidesEditor(k); attachRuleSlidesEvents(k); });
 
   document.getElementById('q-time').value=appData.qualifying.timeLimitMinutes;
   document.getElementById('q-time').addEventListener('change',e=>{appData.qualifying.timeLimitMinutes=Number(e.target.value)||1;});
@@ -504,6 +536,7 @@ function initAdmin(){
   document.getElementById('fn-wincount').value=appData.final.winCount;
   document.getElementById('fn-wincount').addEventListener('change',e=>{appData.final.winCount=Math.max(1,Number(e.target.value)||3);});
   document.getElementById('fn-add').addEventListener('click',()=>{appData.final.questions.push(makeFinalQ()); renderFnList();});
+  document.getElementById('wc-add').addEventListener('click',()=>{appData.wildcard.questions.push(makeFinalQ()); renderWcList();});
 
   document.getElementById('btn-save').addEventListener('click', async ()=>{ await persistAppData(); });
   document.getElementById('btn-open-host').addEventListener('click', async ()=>{ await persistAppData(); window.open(location.pathname+'?event='+encodeURIComponent(EVENT_ID),'_blank'); });
@@ -513,20 +546,21 @@ function initAdmin(){
 
   attachQuestionListEvents('q-list', ()=>appData.qualifying.questions, renderQList);
   attachQuestionListEvents('fn-list', ()=>appData.final.questions, renderFnList);
+  attachQuestionListEvents('wc-list', ()=>appData.wildcard.questions, renderWcList);
   attachSfListEvents();
 
-  renderQList(); renderSfList(); renderFnList(); renderConfirm();
+  renderQList(); renderSfList(); renderFnList(); renderWcList(); renderConfirm();
 }
 function refreshAdminUI(){
   document.getElementById('f-title').value = appData.eventTitle;
-  setupRuleEditor('overall'); setupRuleEditor('qualifying'); setupRuleEditor('semifinal'); setupRuleEditor('final');
+  renderRuleSlidesEditor('overall'); renderRuleSlidesEditor('qualifying'); renderRuleSlidesEditor('semifinal'); renderRuleSlidesEditor('wildcard'); renderRuleSlidesEditor('final');
   document.getElementById('q-time').value = appData.qualifying.timeLimitMinutes;
   document.getElementById('q-pass').value = appData.qualifying.passThreshold;
   document.getElementById('q-exempt').checked = appData.qualifying.semifinalExemptionEnabled;
   document.getElementById('sf-time').value = appData.semifinal.timeLimitSeconds;
   document.getElementById('sf-finalist-count').value = appData.semifinal.finalistCount;
   document.getElementById('fn-wincount').value = appData.final.winCount;
-  renderQList(); renderSfList(); renderFnList(); renderConfirm();
+  renderQList(); renderSfList(); renderFnList(); renderWcList(); renderConfirm();
 }
 function exportAppData(){
   const blob = new Blob([JSON.stringify(appData, null, 2)], {type:'application/json'});
@@ -553,50 +587,89 @@ async function importAppDataFile(e){
   e.target.value='';
 }
 
-function buildRuleEditorBlockHTML(key){
-  return `<div class="rule-editor-block">
-    <div class="rich-toolbar" data-rule-key="${key}">
-      <button type="button" data-cmd="bold">太字</button>
-      <button type="button" data-cmd="colorclass" data-val="rule-red">赤字</button>
-      <button type="button" data-cmd="colorclass" data-val="rule-normal">黒字</button>
-      <button type="button" data-cmd="upsize">文字を大きく</button>
-      <button type="button" data-cmd="removeFormat">標準文字</button>
-    </div>
-    <div id="rule-edit-${key}" contenteditable="true" class="rule-edit"></div>
-    <div class="row">
-      <input type="file" id="rule-img-input-${key}" accept="image/*">
-      <button type="button" id="rule-img-remove-${key}" class="btn-mini">画像を削除</button>
-    </div>
-    <img id="rule-img-preview-${key}" class="thumb" style="display:none">
-  </div>`;
+function buildRuleSlidesEditorHTML(key){
+  const slides=appData[key].ruleSlides;
+  return slides.map((slide,si)=>`
+    <div class="rule-slide-card" data-si="${si}">
+      <div class="rule-slide-head">
+        <span class="q-idx">ページ${si+1}</span>
+        <button type="button" class="btn-mini rs-act" data-act="slide-up">🔼</button>
+        <button type="button" class="btn-mini rs-act" data-act="slide-down">🔽</button>
+        <button type="button" class="btn-mini rs-act" data-act="slide-del" ${slides.length<=1?'disabled':''}>🗑 ページ削除</button>
+      </div>
+      <div class="row">
+        <input type="file" accept="image/*" class="rs-act" data-act="slide-img-input">
+        <button type="button" class="btn-mini rs-act" data-act="slide-img-remove">画像を削除</button>
+        ${slide.img?`<img class="thumb" src="${slide.img}">`:''}
+      </div>
+      ${slide.groups.map((g,gi)=>`
+        <div class="rule-group-block" data-gi="${gi}">
+          <div class="rich-toolbar">
+            <button type="button" class="rs-act" data-act="fmt" data-cmd="bold">太字</button>
+            <button type="button" class="rs-act" data-act="fmt" data-cmd="colorclass" data-val="rule-red">赤字</button>
+            <button type="button" class="rs-act" data-act="fmt" data-cmd="colorclass" data-val="rule-normal">黒字</button>
+            <button type="button" class="rs-act" data-act="fmt" data-cmd="upsize">文字を大きく</button>
+            <button type="button" class="rs-act" data-act="fmt" data-cmd="removeFormat">標準文字</button>
+            <button type="button" class="btn-mini rs-act" data-act="group-up" ${gi===0?'disabled':''}>▲段</button>
+            <button type="button" class="btn-mini rs-act" data-act="group-down" ${gi===slide.groups.length-1?'disabled':''}>▼段</button>
+            <button type="button" class="btn-mini rs-act" data-act="group-del" ${slide.groups.length<=1?'disabled':''}>🗑段</button>
+          </div>
+          <div class="rule-edit rule-group-edit" contenteditable="true">${g||''}</div>
+        </div>`).join('')}
+      <button type="button" class="btn-mini rs-act" data-act="group-add">＋ 段を追加</button>
+    </div>`).join('') + `<button type="button" class="btn-mini rs-slide-add">＋ ページを追加</button>`;
 }
-function setupRuleEditor(key){
-  document.getElementById('rule-editor-'+key).innerHTML = buildRuleEditorBlockHTML(key);
-  const ruleEdit=document.getElementById('rule-edit-'+key);
-  ruleEdit.innerHTML = appData[key].ruleText||'';
-  ruleEdit.addEventListener('input',()=>{ appData[key].ruleText = ruleEdit.innerHTML; });
-  document.querySelectorAll('.rich-toolbar[data-rule-key="'+key+'"] button').forEach(btn=>{
-    btn.addEventListener('mousedown', e=>{ e.preventDefault(); });
-    btn.addEventListener('click', ()=>{
-      ruleEdit.focus();
-      const cmd=btn.dataset.cmd;
+function renderRuleSlidesEditor(key){
+  document.getElementById('rule-editor-'+key).innerHTML = buildRuleSlidesEditorHTML(key);
+}
+function attachRuleSlidesEvents(key){
+  const container=document.getElementById('rule-editor-'+key);
+  container.addEventListener('mousedown', e=>{ if(e.target.closest('.rich-toolbar')) e.preventDefault(); });
+  container.addEventListener('click', async e=>{
+    if(e.target.closest('.rs-slide-add')){
+      appData[key].ruleSlides.push({img:null, groups:['']});
+      renderRuleSlidesEditor(key);
+      return;
+    }
+    const slideCard=e.target.closest('.rule-slide-card'); if(!slideCard) return;
+    const si=Number(slideCard.dataset.si);
+    const slides=appData[key].ruleSlides;
+    const slide=slides[si];
+    const groupBlock=e.target.closest('.rule-group-block');
+    const gi = groupBlock ? Number(groupBlock.dataset.gi) : null;
+    const act=e.target.dataset.act;
+    if(act==='slide-up'){ if(si>0){ [slides[si-1],slides[si]]=[slides[si],slides[si-1]]; renderRuleSlidesEditor(key); } }
+    else if(act==='slide-down'){ if(si<slides.length-1){ [slides[si+1],slides[si]]=[slides[si],slides[si+1]]; renderRuleSlidesEditor(key); } }
+    else if(act==='slide-del'){ if(slides.length>1 && confirm('このページを削除しますか？')){ slides.splice(si,1); renderRuleSlidesEditor(key); } }
+    else if(act==='slide-img-remove'){ slide.img=null; renderRuleSlidesEditor(key); }
+    else if(act==='group-add'){ slide.groups.push(''); renderRuleSlidesEditor(key); }
+    else if(act==='group-up'){ if(gi>0){ [slide.groups[gi-1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi-1]]; renderRuleSlidesEditor(key); } }
+    else if(act==='group-down'){ if(gi<slide.groups.length-1){ [slide.groups[gi+1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi+1]]; renderRuleSlidesEditor(key); } }
+    else if(act==='group-del'){ if(slide.groups.length>1){ slide.groups.splice(gi,1); renderRuleSlidesEditor(key); } }
+    else if(act==='fmt'){
+      const editEl=groupBlock.querySelector('.rule-group-edit');
+      editEl.focus();
+      const cmd=e.target.dataset.cmd;
       if(cmd==='upsize'){ wrapSelectionBig(); }
-      else if(cmd==='colorclass'){ wrapSelectionClass(btn.dataset.val); }
+      else if(cmd==='colorclass'){ wrapSelectionClass(e.target.dataset.val); }
       else { document.execCommand(cmd, false, null); }
-      appData[key].ruleText = ruleEdit.innerHTML;
-    });
+      slide.groups[gi]=editEl.innerHTML;
+    }
   });
-  const renderImg=()=>{
-    const img=document.getElementById('rule-img-preview-'+key);
-    if(appData[key].ruleImg){ img.src=appData[key].ruleImg; img.style.display='block'; } else { img.style.display='none'; }
-  };
-  renderImg();
-  document.getElementById('rule-img-input-'+key).addEventListener('change', async e=>{
-    const f=e.target.files[0]; if(!f) return;
-    appData[key].ruleImg = await compressImageFile(f);
-    renderImg();
+  container.addEventListener('input', e=>{
+    const editEl=e.target.closest('.rule-group-edit'); if(!editEl) return;
+    const slideCard=e.target.closest('.rule-slide-card'); if(!slideCard) return;
+    const groupBlock=e.target.closest('.rule-group-block'); if(!groupBlock) return;
+    appData[key].ruleSlides[Number(slideCard.dataset.si)].groups[Number(groupBlock.dataset.gi)]=editEl.innerHTML;
   });
-  document.getElementById('rule-img-remove-'+key).addEventListener('click', ()=>{ appData[key].ruleImg=null; renderImg(); });
+  container.addEventListener('change', async e=>{
+    if(e.target.dataset.act==='slide-img-input'){
+      const slideCard=e.target.closest('.rule-slide-card'); const si=Number(slideCard.dataset.si);
+      const f=e.target.files[0]; if(!f) return;
+      appData[key].ruleSlides[si].img = await compressImageFile(f);
+      renderRuleSlidesEditor(key);
+    }
+  });
 }
 function wrapSelectionBig(){
   const sel=window.getSelection(); if(!sel.rangeCount) return;
@@ -636,7 +709,7 @@ function buildQuestionCardHTML(list,q,idx,kind){
       <button type="button" class="btn-mini btn-down">🔽</button>
       <button type="button" class="btn-mini btn-del">🗑</button>
     </div>
-    ${expanded? (kind==='final' ? buildFinalQuestionDetailHTML(q) : buildQuestionDetailHTML(q)) : ''}
+    ${expanded? ((kind==='final'||kind==='wildcard') ? buildFinalQuestionDetailHTML(q) : buildQuestionDetailHTML(q)) : ''}
   </div>`;
 }
 function buildPromptImagesEditorHTML(q){
@@ -780,6 +853,11 @@ function renderFnList(){
   document.getElementById('fn-list').innerHTML = list.map((q,i)=>buildQuestionCardHTML(list,q,i,'final')).join('') || '<p class="muted">まだ問題がありません</p>';
   renderConfirm();
 }
+function renderWcList(){
+  const list=appData.wildcard.questions;
+  document.getElementById('wc-list').innerHTML = list.map((q,i)=>buildQuestionCardHTML(list,q,i,'wildcard')).join('') || '<p class="muted">まだ問題がありません</p>';
+  renderConfirm();
+}
 
 function buildSfCardHTML(list,q,idx){
   const expanded=expandedIds.has(q.id);
@@ -846,12 +924,15 @@ function renderConfirm(){
   const el=document.getElementById('confirm-panel'); if(!el) return;
   const qList=appData.qualifying.questions.filter(q=>q.include);
   const sfList=appData.semifinal.questions.filter(q=>q.include);
+  const wcList=appData.wildcard.questions.filter(q=>q.include);
   const fnList=appData.final.questions.filter(q=>q.include);
   el.innerHTML = `
     <div><strong>予選（${qList.length}問・制限${appData.qualifying.timeLimitMinutes}分・合格ライン${appData.qualifying.passThreshold}問正解・準決勝免除${appData.qualifying.semifinalExemptionEnabled?'ON':'OFF'}）</strong>
       <ol>${qList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
     <div><strong>準決勝（登録${sfList.length}問・解答${appData.semifinal.timeLimitSeconds}秒・決勝進出者${appData.semifinal.finalistCount}名）</strong>
       <ol>${sfList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}（正解:${q.targetNumber}）</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
+    <div><strong>敗者復活戦（${wcList.length}問・勝者1名）</strong>
+      <ol>${wcList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
     <div><strong>決勝（${fnList.length}問・優勝に必要な正解数${appData.final.winCount}問）</strong>
       <ol>${fnList.map(q=>`<li>${escapeHtml(q.prompt.text||'(無題)')}</li>`).join('')||'<li class="muted">なし</li>'}</ol></div>
   `;
@@ -864,9 +945,11 @@ let qualifyingTimerHandle=null, semifinalTimerHandle=null;
 function freshGameState(){return {
   phase:'lobby',
   ruleKey:'qualifying',
+  ruleSlideIndex:0, ruleRevealIndex:0,
   players:{},
   qualifying:{startedAt:null, durationMs:0, showSubmitStatus:false, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
   semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedIds:[], roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
+  wildcard:{ qIndex:0, winnerId:null, liveNote:'', liveNoteSize:28 },
   final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
@@ -1011,10 +1094,13 @@ const hostActions={
   'open-admin': ()=>{ window.open(location.pathname+'?mode=admin&event='+encodeURIComponent(EVENT_ID),'_blank'); },
   'reset-room': ()=>{ if(confirm('新しい部屋を作り直しますか？進行状況はリセットされます。')){ localStorage.removeItem(LS_STATE); localStorage.removeItem(LS_ROOM); location.reload(); } },
   'restart-all': ()=>{ if(confirm('最初からやり直しますか？（全員の進行状況がリセットされます）')){ resetWholeGame(); } },
-  'start-rule': ()=>{ gameState.phase='rule'; gameState.ruleKey='overall'; saveGameState(); broadcastStateSync(); renderHost(); },
-  'show-qualifying-rule': ()=>{ gameState.ruleKey='qualifying'; saveGameState(); broadcastStateSync(); renderHost(); },
+  'start-rule': ()=>{ enterRulePhase('overall'); },
+  'show-qualifying-rule': ()=>{ enterRulePhase('qualifying'); },
+  'rule-next': ()=>{ advanceRuleReveal(); },
+  'rule-prev': ()=>{ retreatRuleReveal(); },
   'start-qualifying': ()=>{ startQualifying(); },
   'start-semifinal': ()=>{ startNextSemifinalQuestion(); },
+  'start-wildcard': ()=>{ startWildcardRound(); },
   'force-end-qualifying': ()=>{ endQualifyingNow(); },
   'toggle-qualifying-submit-status': ()=>{ gameState.qualifying.showSubmitStatus=!gameState.qualifying.showSubmitStatus; saveGameState(); renderHost(); },
   'start-qualifying-reveal': ()=>{ startQualifyingReveal(); },
@@ -1049,6 +1135,11 @@ const hostActions={
   },
   'sf-manual-confirm-all': ()=>{ confirmManualSelectAll(); },
   'sf-manual-confirm': ()=>{ confirmManualSelect(); },
+  'wildcard-next': ()=>{ advanceWildcardQuestion(); },
+  'wildcard-skip-select': ()=>{ enterWildcardSelect(); },
+  'wildcard-pick': (arg)=>{ gameState.wildcard.winnerId=arg; saveGameState(); renderHost(); },
+  'wildcard-confirm': ()=>{ confirmWildcardSelect(); },
+  'wildcard-confirm-none': ()=>{ gameState.wildcard.winnerId=null; confirmWildcardSelect(); },
   'final-start': ()=>{ startFinalRound(); },
   'final-mark': (arg)=>{ const [pid,verdict]=arg.split('|'); markFinalAnswer(pid,verdict); },
   'final-next': ()=>{ nextFinalQuestion(); },
@@ -1078,14 +1169,8 @@ function handleHostEnter(){
     case 'qualifying_results': advanceQualifyingResults(); break;
     case 'semifinal_reveal': advanceSemifinalReveal(); break;
     case 'final': if(currentFinalQuestion()) nextFinalQuestion(); break;
-    case 'rule': {
-      const key=gameState.ruleKey||'qualifying';
-      if(key==='overall') hostActions['show-qualifying-rule']();
-      else if(key==='qualifying') startQualifying();
-      else if(key==='semifinal') startNextSemifinalQuestion();
-      else if(key==='final') startFinalRound();
-      break;
-    }
+    case 'rule': advanceRuleReveal(); break;
+    case 'wildcard': hostActions['wildcard-next'](); break;
   }
 }
 
@@ -1102,11 +1187,14 @@ function renderHost(){
     case 'qualifying_results': body=renderQualifyingResults(); break;
     case 'semifinal': body=renderSemifinalPhase(); break;
     case 'semifinal_reveal': body=renderSemifinalReveal(); break;
+    case 'wildcard': body=renderWildcardPhase(); break;
+    case 'wildcard_select': body=renderWildcardSelect(); break;
     case 'final': body=renderFinalPhase(); break;
     case 'champion': body=renderChampion(); break;
   }
   root.innerHTML = `<div class="host-topbar"><span class="host-title">${eventTitle}</span><div class="host-topbar-actions"><button data-action="open-admin" class="btn-mini">⚙ 管理画面</button><button data-action="restart-all" class="btn-mini">🆕 最初から</button></div></div>${body}`;
   if(gameState.phase==='lobby') renderQR();
+  if(gameState.phase==='wildcard') wireWildcardNote();
 }
 
 /* ---- lobby / rule ---- */
@@ -1134,23 +1222,74 @@ const RULE_PHASE_CONFIG = {
   overall:{title:'大会全体のルール説明', action:'show-qualifying-rule', btn:'▶ 予選のルール説明へ'},
   qualifying:{title:'予選のルール説明', action:'start-qualifying', btn:'▶ 予選を始める'},
   semifinal:{title:'準決勝のルール説明', action:'start-semifinal', btn:'▶ 準決勝を始める'},
+  wildcard:{title:'敗者復活戦のルール説明', action:'start-wildcard', btn:'▶ 敗者復活戦を始める'},
   final:{title:'決勝のルール説明', action:'final-start', btn:'▶ 決勝を始める'}
 };
+function enterRulePhase(key){
+  gameState.phase='rule'; gameState.ruleKey=key; gameState.ruleSlideIndex=0; gameState.ruleRevealIndex=0;
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function currentRuleSlides(){
+  const key=gameState.ruleKey||'qualifying';
+  const slides=appData[key] && appData[key].ruleSlides;
+  return (Array.isArray(slides) && slides.length) ? slides : [{img:null, groups:['']}];
+}
 function renderRulePhase(){
   const key=gameState.ruleKey||'qualifying';
   const cfg=RULE_PHASE_CONFIG[key];
-  const rd=appData[key];
+  const slides=currentRuleSlides();
+  const si=Math.min(gameState.ruleSlideIndex||0, slides.length-1);
+  const slide=slides[si];
+  const revealIdx=Math.min(gameState.ruleRevealIndex||0, slide.groups.length-1);
+  const atStart = si===0 && revealIdx===0;
+  const isLastStageOfPage = revealIdx>=slide.groups.length-1;
+  const isLastPage = si>=slides.length-1;
+  const isFinalStep = isLastStageOfPage && isLastPage;
   let finalistsHtml='';
   if(key==='final'){
     const names=gameState.final.finalists.map(id=>gameState.players[id]?gameState.players[id].name:'');
     finalistsHtml = `<h3>決勝進出者</h3><div class="finalist-names">${names.map(n=>`<span class="tag tag-pass finalist-tag">${escapeHtml(n)}</span>`).join('')}</div>`;
   }
+  const groupsHtml = slide.groups.map((g,gi)=>`<div class="rule-group" style="${gi<=revealIdx?'':'visibility:hidden'}">${g||''}</div>`).join('');
+  const nextLabel = isFinalStep ? cfg.btn : (isLastStageOfPage ? '次のページへ ▶' : '次へ ▶');
   return `<div class="host-rule">
-    <h2>${cfg.title}</h2>
+    <h2>${cfg.title}${slides.length>1?` <span class="muted" style="font-size:15px">(${si+1}/${slides.length})</span>`:''}</h2>
     ${finalistsHtml}
-    <div class="rule-display">${rd.ruleImg?`<img class="rule-img" src="${rd.ruleImg}">`:''}${rd.ruleText||'<p class="muted">（ルール未登録）</p>'}</div>
-    <button data-action="${cfg.action}" class="btn-primary">${cfg.btn} (Enter)</button>
+    <div class="rule-display">${slide.img?`<img class="rule-img" src="${slide.img}">`:''}${groupsHtml}</div>
+    <div class="row" style="justify-content:center">
+      <button data-action="rule-prev" class="btn-mini" ${atStart?'disabled':''}>◀ 前へ</button>
+      <button data-action="rule-next" class="btn-primary">${nextLabel} (Enter)</button>
+    </div>
   </div>`;
+}
+function advanceRuleReveal(){
+  const key=gameState.ruleKey||'qualifying';
+  const slides=currentRuleSlides();
+  const si=gameState.ruleSlideIndex||0;
+  const slide=slides[si];
+  const revealIdx=gameState.ruleRevealIndex||0;
+  if(revealIdx < slide.groups.length-1){
+    gameState.ruleRevealIndex=revealIdx+1;
+    saveGameState(); renderHost();
+    return;
+  }
+  if(si < slides.length-1){
+    gameState.ruleSlideIndex=si+1; gameState.ruleRevealIndex=0;
+    saveGameState(); renderHost();
+    return;
+  }
+  hostActions[RULE_PHASE_CONFIG[key].action]();
+}
+function retreatRuleReveal(){
+  const slides=currentRuleSlides();
+  const si=gameState.ruleSlideIndex||0;
+  const revealIdx=gameState.ruleRevealIndex||0;
+  if(revealIdx>0){ gameState.ruleRevealIndex=revealIdx-1; saveGameState(); renderHost(); return; }
+  if(si>0){
+    gameState.ruleSlideIndex=si-1;
+    gameState.ruleRevealIndex=slides[si-1].groups.length-1;
+    saveGameState(); renderHost();
+  }
 }
 
 /* ---- qualifying ---- */
@@ -1386,9 +1525,8 @@ function setupSemifinal(){
   Object.entries(gameState.players).forEach(([id,p])=>{ p.semifinal={advanced:advancedOrder.includes(id), lastAnswer:null}; });
   const finalistCount=appData.semifinal.finalistCount;
   gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:finalistCount, exemptedIds, roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
-  if(advancedOrder.length>=finalistCount || candidates.length===0){ startFinalIntro(); return; }
-  gameState.phase='rule'; gameState.ruleKey='semifinal';
-  saveGameState(); broadcastStateSync(); renderHost();
+  if(advancedOrder.length>=finalistCount || candidates.length===0){ enterWildcard(); return; }
+  enterRulePhase('semifinal');
 }
 function startNextSemifinalQuestion(){
   const q=currentSemifinalQuestion();
@@ -1476,12 +1614,12 @@ function renderManualSelect(){
 function confirmManualSelect(){
   gameState.semifinal.manualPicks.forEach(id=>{ gameState.semifinal.advancedOrder.push(id); gameState.players[id].semifinal.advanced=true; });
   gameState.semifinal.manualSelect=false;
-  startFinalIntro();
+  enterWildcard();
 }
 function confirmManualSelectAll(){
   gameState.semifinal.targets.forEach(id=>{ gameState.semifinal.advancedOrder.push(id); gameState.players[id].semifinal.advanced=true; });
   gameState.semifinal.manualSelect=false;
-  startFinalIntro();
+  enterWildcard();
 }
 function computeSemifinalResult(){
   const q=currentSemifinalQuestion();
@@ -1550,7 +1688,7 @@ function advanceSemifinalReveal(){
   const nearestGroup=gameState.semifinal._nearestGroup||[];
   if(nearestGroup.length>0 && nearestGroup.length<=needed){
     nearestGroup.forEach(id=>{ gameState.semifinal.advancedOrder.push(id); gameState.players[id].semifinal.advanced=true; });
-    if(gameState.semifinal.advancedOrder.length>=gameState.semifinal.neededTotal){ startFinalIntro(); return; }
+    if(gameState.semifinal.advancedOrder.length>=gameState.semifinal.neededTotal){ enterWildcard(); return; }
     gameState.semifinal.targets = gameState.semifinal.candidates.filter(id=>!gameState.semifinal.advancedOrder.includes(id));
     gameState.semifinal.roundIndex++;
     startNextSemifinalQuestion();
@@ -1566,13 +1704,130 @@ function advanceSemifinalReveal(){
   startNextSemifinalQuestion();
 }
 
+/* ---- wildcard (敗者復活戦) ---- */
+function includedWildcardQuestions(){ return appData.wildcard.questions.filter(q=>q.include); }
+function currentWildcardQuestion(){ return includedWildcardQuestions()[gameState.wildcard.qIndex] || null; }
+function enterWildcard(){
+  gameState.wildcard = { qIndex:0, winnerId:null, liveNote:'', liveNoteSize:28 };
+  enterRulePhase('wildcard');
+}
+function startWildcardRound(){
+  gameState.wildcard.qIndex=0;
+  if(includedWildcardQuestions().length===0){ enterWildcardSelect(); return; }
+  gameState.phase='wildcard';
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function advanceWildcardQuestion(){
+  const qs=includedWildcardQuestions();
+  if(gameState.wildcard.qIndex < qs.length-1){
+    gameState.wildcard.qIndex++;
+    saveGameState(); broadcastStateSync(); renderHost();
+  } else {
+    enterWildcardSelect();
+  }
+}
+function enterWildcardSelect(){
+  gameState.phase='wildcard_select';
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function renderWildcardPhase(){
+  const qs=includedWildcardQuestions();
+  const q=currentWildcardQuestion();
+  if(!q) return renderWildcardSelect();
+  const idx=gameState.wildcard.qIndex;
+  const isLast=idx===qs.length-1;
+  const noteSize=gameState.wildcard.liveNoteSize||28;
+  return `<div class="host-final">
+    <h2>敗者復活戦 第${idx+1}問${isLast?'（最終問題）':''}</h2>
+    ${renderImgList(q.prompt.imgs,'q-img')}
+    <div class="q-text-big">${escapeHtml(q.prompt.text)}</div>
+    <div class="wildcard-note-area">
+      <div class="row" style="justify-content:center">
+        <label>文字サイズ
+          <select id="wildcard-note-size">
+            <option value="18" ${noteSize===18?'selected':''}>小</option>
+            <option value="24" ${noteSize===24?'selected':''}>中</option>
+            <option value="28" ${noteSize===28?'selected':''}>標準</option>
+            <option value="36" ${noteSize===36?'selected':''}>大</option>
+            <option value="48" ${noteSize===48?'selected':''}>特大</option>
+          </select>
+        </label>
+      </div>
+      <textarea id="wildcard-note" class="wildcard-note" style="font-size:${noteSize}px" placeholder="ここに状況などを自由に書き込めます（参加者の画面には表示されません）">${escapeHtml(gameState.wildcard.liveNote||'')}</textarea>
+    </div>
+    <div class="row" style="justify-content:center">
+      <button data-action="wildcard-next" class="btn-primary">${isLast?'▶ 進出者を選ぶ':'次の問題へ ▶'} (Enter)</button>
+      ${!isLast?'<button data-action="wildcard-skip-select" class="btn-mini">▶ 今すぐ進出者を選ぶ</button>':''}
+    </div>
+  </div>`;
+}
+function wireWildcardNote(){
+  const ta=document.getElementById('wildcard-note');
+  const sel=document.getElementById('wildcard-note-size');
+  if(!ta) return;
+  ta.addEventListener('input', ()=>{ gameState.wildcard.liveNote=ta.value; });
+  if(sel) sel.addEventListener('change', ()=>{
+    const size=Number(sel.value)||28;
+    gameState.wildcard.liveNoteSize=size;
+    ta.style.fontSize=size+'px';
+    saveGameState();
+  });
+}
+function wildcardEligibleRows(){
+  const order=(gameState.qualifying.resultsOrder||[]).slice();
+  const finalistIds=gameState.semifinal.advancedOrder;
+  const maxRank = order.length ? Math.max(...order.map(e=>e.rank)) : null;
+  const rows=[];
+  finalistIds.forEach(id=>{
+    const p=gameState.players[id]; if(!p) return;
+    rows.push({id, name:p.name, eligible:false, tag:'決勝進出者'});
+  });
+  order.filter(e=>!finalistIds.includes(e.id)).forEach(e=>{
+    const p=gameState.players[e.id]; if(!p) return;
+    const isLast = maxRank!=null && e.rank===maxRank;
+    const detail=`予選${e.rank}位・${p.qualifying.correctCount}問正解`;
+    if(isLast) rows.push({id:e.id, name:p.name, eligible:false, tag:'対象外（予選最下位）', detail});
+    else rows.push({id:e.id, name:p.name, eligible:true, detail});
+  });
+  return rows;
+}
+function renderWildcardSelect(){
+  const rows=wildcardEligibleRows();
+  const eligibleCount=rows.filter(r=>r.eligible).length;
+  const rowsHtml = rows.map(r=>{
+    if(!r.eligible){
+      return `<div class="manual-row wildcard-row ineligible"><span>${escapeHtml(r.name)}${r.detail?`（${r.detail}）`:''}</span><span class="tag ${r.tag==='決勝進出者'?'tag-pass':'tag-fail'}">${r.tag}</span></div>`;
+    }
+    const picked=gameState.wildcard.winnerId===r.id;
+    return `<label class="manual-row wildcard-row"><input type="radio" name="wildcard-pick" data-action="wildcard-pick" data-arg="${r.id}" ${picked?'checked':''}> ${escapeHtml(r.name)}（${r.detail}）</label>`;
+  }).join('');
+  if(eligibleCount===0){
+    return `<div class="host-semifinal-manual">
+      <h2>敗者復活戦 - 進出者を選択</h2>
+      <p>対象者がいません。</p>
+      <div class="manual-list">${rowsHtml}</div>
+      <button data-action="wildcard-confirm-none" class="btn-primary">▶ そのまま決勝へ進む</button>
+    </div>`;
+  }
+  return `<div class="host-semifinal-manual">
+    <h2>敗者復活戦 - 復活する1名を選んでください</h2>
+    <div class="manual-list">${rowsHtml}</div>
+    <button data-action="wildcard-confirm" class="btn-primary" ${gameState.wildcard.winnerId?'':'disabled'}>▶ 決勝進出者を確定</button>
+  </div>`;
+}
+function confirmWildcardSelect(){
+  startFinalIntro();
+}
+
 /* ---- final ---- */
 function startFinalIntro(){
   gameState.final.finalists = gameState.semifinal.advancedOrder.slice();
+  if(gameState.wildcard.winnerId && !gameState.final.finalists.includes(gameState.wildcard.winnerId)){
+    gameState.final.finalists.push(gameState.wildcard.winnerId);
+  }
   gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null; gameState.final.championId=null;
   gameState.final.finalists.forEach(id=>{ gameState.players[id].final={correctCount:0, lockedUntilQuestionIdx:null}; });
-  gameState.phase='rule'; gameState.ruleKey='final';
-  saveGameState(); broadcastStateSync(); renderHost();
+  enterRulePhase('final');
 }
 function startFinalRound(){
   const qs=includedFinalQuestions();
