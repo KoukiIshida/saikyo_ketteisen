@@ -76,7 +76,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .host-topbar-actions{display:flex; gap:8px;}
 .host-title{font-weight:bold; font-size:18px;}
 .host-lobby,.host-rule,.host-qualifying,.host-reveal,.host-results,.host-semifinal,.host-semifinal-reveal,.host-semifinal-manual,.host-final,.host-champion{padding:24px; text-align:center;}
-.rule-display{text-align:left; max-width:700px; margin:20px auto 28px; line-height:1.7;}
+.rule-display{text-align:left; max-width:700px; margin:20px auto 28px; line-height:1.7; font-size:22px;}
 .rule-red{color:#c0392b;}
 .rule-normal{color:#222;}
 .rule-display .rule-red{color:#ff7b7b;}
@@ -129,6 +129,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .manual-row{display:block; padding:6px 0;}
 .wildcard-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #333;}
 .wildcard-row.ineligible{opacity:.55;}
+.wildcard-row.eliminated{opacity:.4; filter:grayscale(1);}
 .wildcard-note-area{max-width:700px; margin:16px auto;}
 .wildcard-note{width:100%; min-height:180px; padding:12px; border-radius:8px; border:1px solid #445; background:#1b1f2a; color:#fff; font-family:inherit; resize:vertical;}
 
@@ -949,7 +950,7 @@ function freshGameState(){return {
   players:{},
   qualifying:{startedAt:null, durationMs:0, showSubmitStatus:false, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
   semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedIds:[], roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
-  wildcard:{ qIndex:0, winnerId:null, liveNote:'', liveNoteSize:28 },
+  wildcard:{ qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:28 },
   final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
@@ -1079,6 +1080,9 @@ function sendStateSyncTo(playerId){
     payload.waiting=true; payload.alreadyAdvanced=p.semifinal.advanced;
     payload.message = gameState.semifinal.resultText || '結果発表中です。ホストの画面をご覧ください。';
   }
+  else if(phase==='wildcard' || phase==='wildcard_surprise' || phase==='wildcard_rule_ranking'){
+    payload.message='ホストの画面をご覧ください。';
+  }
   else if(phase==='final'){
     payload.amFinalist = gameState.final.finalists.includes(playerId);
     payload.locked = p.final.lockedUntilQuestionIdx!=null && p.final.lockedUntilQuestionIdx>=gameState.final.qIndex;
@@ -1135,11 +1139,25 @@ const hostActions={
   },
   'sf-manual-confirm-all': ()=>{ confirmManualSelectAll(); },
   'sf-manual-confirm': ()=>{ confirmManualSelect(); },
-  'wildcard-next': ()=>{ advanceWildcardQuestion(); },
-  'wildcard-skip-select': ()=>{ enterWildcardSelect(); },
-  'wildcard-pick': (arg)=>{ gameState.wildcard.winnerId=arg; saveGameState(); renderHost(); },
+  'wildcard-surprise-next': ()=>{ enterRulePhase('wildcard'); },
+  'wildcard-ranking-next': ()=>{ gameState.ruleSlideIndex=1; gameState.ruleRevealIndex=0; gameState.phase='rule'; saveGameState(); broadcastStateSync(); renderHost(); },
+  'wildcard-ranking-prev': ()=>{
+    const slides=currentRuleSlides();
+    gameState.ruleSlideIndex=0; gameState.ruleRevealIndex=slides[0].groups.length-1;
+    gameState.phase='rule'; saveGameState(); broadcastStateSync(); renderHost();
+  },
+  'wildcard-see-explain': ()=>{ advanceWildcardFromQuestionStage(); },
+  'wildcard-next-question': ()=>{ advanceWildcardExplain(); },
+  'wildcard-eliminate-toggle': (arg)=>{
+    const id=arg; const list=gameState.wildcard.eliminated;
+    const i=list.indexOf(id);
+    if(i>=0) list.splice(i,1);
+    else { list.push(id); if(gameState.wildcard.winnerId===id) gameState.wildcard.winnerId=null; }
+    saveGameState(); renderHost();
+  },
+  'wildcard-pick': (arg)=>{ if(gameState.wildcard.eliminated.includes(arg)) return; gameState.wildcard.winnerId=arg; saveGameState(); renderHost(); },
   'wildcard-confirm': ()=>{ confirmWildcardSelect(); },
-  'wildcard-confirm-none': ()=>{ gameState.wildcard.winnerId=null; confirmWildcardSelect(); },
+  'wildcard-confirm-none': ()=>{ confirmWildcardSelectNone(); },
   'final-start': ()=>{ startFinalRound(); },
   'final-mark': (arg)=>{ const [pid,verdict]=arg.split('|'); markFinalAnswer(pid,verdict); },
   'final-next': ()=>{ nextFinalQuestion(); },
@@ -1170,7 +1188,12 @@ function handleHostEnter(){
     case 'semifinal_reveal': advanceSemifinalReveal(); break;
     case 'final': if(currentFinalQuestion()) nextFinalQuestion(); break;
     case 'rule': advanceRuleReveal(); break;
-    case 'wildcard': hostActions['wildcard-next'](); break;
+    case 'wildcard_surprise': hostActions['wildcard-surprise-next'](); break;
+    case 'wildcard_rule_ranking': hostActions['wildcard-ranking-next'](); break;
+    case 'wildcard':
+      if(gameState.wildcard.stage==='explain') hostActions['wildcard-next-question']();
+      else hostActions['wildcard-see-explain']();
+      break;
   }
 }
 
@@ -1187,8 +1210,9 @@ function renderHost(){
     case 'qualifying_results': body=renderQualifyingResults(); break;
     case 'semifinal': body=renderSemifinalPhase(); break;
     case 'semifinal_reveal': body=renderSemifinalReveal(); break;
+    case 'wildcard_surprise': body=renderWildcardSurprise(); break;
+    case 'wildcard_rule_ranking': body=renderWildcardRuleRanking(); break;
     case 'wildcard': body=renderWildcardPhase(); break;
-    case 'wildcard_select': body=renderWildcardSelect(); break;
     case 'final': body=renderFinalPhase(); break;
     case 'champion': body=renderChampion(); break;
   }
@@ -1207,7 +1231,7 @@ function renderLobby(){
     <p>参加人数: <strong>${players.length}</strong>人</p>
     <div class="player-chips">${players.map(p=>`<span class="chip ${p.connected?'':'chip-off'}">${escapeHtml(p.name)}</span>`).join('')||'<span class="muted">まだ誰も参加していません</span>'}</div>
     <div class="row" style="justify-content:center">
-      <button data-action="start-rule" class="btn-primary" ${players.length===0?'disabled':''}>▶ ルール説明へ進む</button>
+      <button data-action="start-rule" class="btn-primary">▶ ルール説明へ進む</button>
     </div>
   </div>`;
 }
@@ -1274,6 +1298,11 @@ function advanceRuleReveal(){
     return;
   }
   if(si < slides.length-1){
+    if(key==='wildcard' && si===0){
+      gameState.phase='wildcard_rule_ranking';
+      saveGameState(); broadcastStateSync(); renderHost();
+      return;
+    }
     gameState.ruleSlideIndex=si+1; gameState.ruleRevealIndex=0;
     saveGameState(); renderHost();
     return;
@@ -1281,11 +1310,17 @@ function advanceRuleReveal(){
   hostActions[RULE_PHASE_CONFIG[key].action]();
 }
 function retreatRuleReveal(){
+  const key=gameState.ruleKey||'qualifying';
   const slides=currentRuleSlides();
   const si=gameState.ruleSlideIndex||0;
   const revealIdx=gameState.ruleRevealIndex||0;
   if(revealIdx>0){ gameState.ruleRevealIndex=revealIdx-1; saveGameState(); renderHost(); return; }
   if(si>0){
+    if(key==='wildcard' && si===1){
+      gameState.phase='wildcard_rule_ranking';
+      saveGameState(); broadcastStateSync(); renderHost();
+      return;
+    }
     gameState.ruleSlideIndex=si-1;
     gameState.ruleRevealIndex=slides[si-1].groups.length-1;
     saveGameState(); renderHost();
@@ -1708,70 +1743,16 @@ function advanceSemifinalReveal(){
 function includedWildcardQuestions(){ return appData.wildcard.questions.filter(q=>q.include); }
 function currentWildcardQuestion(){ return includedWildcardQuestions()[gameState.wildcard.qIndex] || null; }
 function enterWildcard(){
-  gameState.wildcard = { qIndex:0, winnerId:null, liveNote:'', liveNoteSize:28 };
-  enterRulePhase('wildcard');
-}
-function startWildcardRound(){
-  gameState.wildcard.qIndex=0;
-  if(includedWildcardQuestions().length===0){ enterWildcardSelect(); return; }
-  gameState.phase='wildcard';
+  gameState.wildcard = { qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:28 };
+  gameState.phase='wildcard_surprise';
   saveGameState(); broadcastStateSync(); renderHost();
 }
-function advanceWildcardQuestion(){
-  const qs=includedWildcardQuestions();
-  if(gameState.wildcard.qIndex < qs.length-1){
-    gameState.wildcard.qIndex++;
-    saveGameState(); broadcastStateSync(); renderHost();
-  } else {
-    enterWildcardSelect();
-  }
-}
-function enterWildcardSelect(){
-  gameState.phase='wildcard_select';
-  saveGameState(); broadcastStateSync(); renderHost();
-}
-function renderWildcardPhase(){
-  const qs=includedWildcardQuestions();
-  const q=currentWildcardQuestion();
-  if(!q) return renderWildcardSelect();
-  const idx=gameState.wildcard.qIndex;
-  const isLast=idx===qs.length-1;
-  const noteSize=gameState.wildcard.liveNoteSize||28;
-  return `<div class="host-final">
-    <h2>敗者復活戦 第${idx+1}問${isLast?'（最終問題）':''}</h2>
-    ${renderImgList(q.prompt.imgs,'q-img')}
-    <div class="q-text-big">${escapeHtml(q.prompt.text)}</div>
-    <div class="wildcard-note-area">
-      <div class="row" style="justify-content:center">
-        <label>文字サイズ
-          <select id="wildcard-note-size">
-            <option value="18" ${noteSize===18?'selected':''}>小</option>
-            <option value="24" ${noteSize===24?'selected':''}>中</option>
-            <option value="28" ${noteSize===28?'selected':''}>標準</option>
-            <option value="36" ${noteSize===36?'selected':''}>大</option>
-            <option value="48" ${noteSize===48?'selected':''}>特大</option>
-          </select>
-        </label>
-      </div>
-      <textarea id="wildcard-note" class="wildcard-note" style="font-size:${noteSize}px" placeholder="ここに状況などを自由に書き込めます（参加者の画面には表示されません）">${escapeHtml(gameState.wildcard.liveNote||'')}</textarea>
-    </div>
-    <div class="row" style="justify-content:center">
-      <button data-action="wildcard-next" class="btn-primary">${isLast?'▶ 進出者を選ぶ':'次の問題へ ▶'} (Enter)</button>
-      ${!isLast?'<button data-action="wildcard-skip-select" class="btn-mini">▶ 今すぐ進出者を選ぶ</button>':''}
-    </div>
+function renderWildcardSurprise(){
+  return `<div class="host-rule">
+    <h2>🎉 サプライズ 🎉</h2>
+    <div class="rule-display" style="text-align:center;"><p style="font-size:28px;">実は…敗者復活戦があります！</p></div>
+    <button data-action="wildcard-surprise-next" class="btn-primary">▶ 敗者復活戦のルール説明へ (Enter)</button>
   </div>`;
-}
-function wireWildcardNote(){
-  const ta=document.getElementById('wildcard-note');
-  const sel=document.getElementById('wildcard-note-size');
-  if(!ta) return;
-  ta.addEventListener('input', ()=>{ gameState.wildcard.liveNote=ta.value; });
-  if(sel) sel.addEventListener('change', ()=>{
-    const size=Number(sel.value)||28;
-    gameState.wildcard.liveNoteSize=size;
-    ta.style.fontSize=size+'px';
-    saveGameState();
-  });
 }
 function wildcardEligibleRows(){
   const order=(gameState.qualifying.resultsOrder||[]).slice();
@@ -1791,31 +1772,116 @@ function wildcardEligibleRows(){
   });
   return rows;
 }
-function renderWildcardSelect(){
+function buildWildcardCandidateListHTML(withControls){
   const rows=wildcardEligibleRows();
-  const eligibleCount=rows.filter(r=>r.eligible).length;
-  const rowsHtml = rows.map(r=>{
+  return rows.map(r=>{
     if(!r.eligible){
       return `<div class="manual-row wildcard-row ineligible"><span>${escapeHtml(r.name)}${r.detail?`（${r.detail}）`:''}</span><span class="tag ${r.tag==='決勝進出者'?'tag-pass':'tag-fail'}">${r.tag}</span></div>`;
     }
+    const isElim=gameState.wildcard.eliminated.includes(r.id);
     const picked=gameState.wildcard.winnerId===r.id;
-    return `<label class="manual-row wildcard-row"><input type="radio" name="wildcard-pick" data-action="wildcard-pick" data-arg="${r.id}" ${picked?'checked':''}> ${escapeHtml(r.name)}（${r.detail}）</label>`;
-  }).join('');
-  if(eligibleCount===0){
-    return `<div class="host-semifinal-manual">
-      <h2>敗者復活戦 - 進出者を選択</h2>
-      <p>対象者がいません。</p>
-      <div class="manual-list">${rowsHtml}</div>
-      <button data-action="wildcard-confirm-none" class="btn-primary">▶ そのまま決勝へ進む</button>
+    if(!withControls){
+      return `<div class="manual-row wildcard-row ${isElim?'eliminated':''}"><span>${escapeHtml(r.name)}（${r.detail}）</span>${isElim?'<span class="tag tag-fail">脱落</span>':''}</div>`;
+    }
+    return `<div class="manual-row wildcard-row ${isElim?'eliminated':''}">
+      <label><input type="radio" name="wildcard-pick" data-action="wildcard-pick" data-arg="${r.id}" ${picked?'checked':''} ${isElim?'disabled':''}> ${escapeHtml(r.name)}（${r.detail}）</label>
+      <button type="button" class="btn-mini ${isElim?'btn-bad':''}" data-action="wildcard-eliminate-toggle" data-arg="${r.id}">${isElim?'脱落を取り消す':'脱落'}</button>
     </div>`;
-  }
-  return `<div class="host-semifinal-manual">
-    <h2>敗者復活戦 - 復活する1名を選んでください</h2>
-    <div class="manual-list">${rowsHtml}</div>
-    <button data-action="wildcard-confirm" class="btn-primary" ${gameState.wildcard.winnerId?'':'disabled'}>▶ 決勝進出者を確定</button>
+  }).join('');
+}
+function renderWildcardRuleRanking(){
+  return `<div class="host-rule">
+    <h2>予選順位</h2>
+    <div class="manual-list">${buildWildcardCandidateListHTML(false)}</div>
+    <div class="row" style="justify-content:center">
+      <button data-action="wildcard-ranking-prev" class="btn-mini">◀ 前へ</button>
+      <button data-action="wildcard-ranking-next" class="btn-primary">次へ ▶ (Enter)</button>
+    </div>
   </div>`;
 }
+function startWildcardRound(){
+  gameState.wildcard.qIndex=0; gameState.wildcard.stage='question';
+  gameState.phase='wildcard';
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function renderWildcardPhase(){
+  if(gameState.wildcard.stage==='explain') return renderWildcardExplain();
+  const qs=includedWildcardQuestions();
+  const q=currentWildcardQuestion();
+  const idx=gameState.wildcard.qIndex;
+  const rows=wildcardEligibleRows();
+  const eligibleCount=rows.filter(r=>r.eligible).length;
+  const noteSize=gameState.wildcard.liveNoteSize||28;
+  const heading = q ? `敗者復活戦 第${idx+1}問${idx===qs.length-1?'（最終問題）':''}` : '敗者復活戦 - 進出者を選択';
+  const listHtml = eligibleCount===0
+    ? `<p>対象者がいません。</p><div class="manual-list">${buildWildcardCandidateListHTML(false)}</div>`
+    : `<div class="manual-list">${buildWildcardCandidateListHTML(true)}</div>`;
+  const nextBtn = q ? `<button data-action="wildcard-see-explain" class="btn-mini">解説を見る ▶ (Enter)</button>` : '';
+  const confirmBtn = eligibleCount===0
+    ? `<button data-action="wildcard-confirm-none" class="btn-primary">▶ そのまま決勝へ進む</button>`
+    : `<button data-action="wildcard-confirm" class="btn-primary" ${gameState.wildcard.winnerId?'':'disabled'}>▶ 進出者を確定する</button>`;
+  return `<div class="host-final">
+    <h2>${heading}</h2>
+    <div class="wildcard-note-area">
+      <div class="row" style="justify-content:center">
+        <label>文字サイズ
+          <select id="wildcard-note-size">
+            <option value="18" ${noteSize===18?'selected':''}>小</option>
+            <option value="24" ${noteSize===24?'selected':''}>中</option>
+            <option value="28" ${noteSize===28?'selected':''}>標準</option>
+            <option value="36" ${noteSize===36?'selected':''}>大</option>
+            <option value="48" ${noteSize===48?'selected':''}>特大</option>
+          </select>
+        </label>
+      </div>
+      <textarea id="wildcard-note" class="wildcard-note" style="font-size:${noteSize}px" placeholder="ここに状況などを自由に書き込めます（参加者の画面には表示されません）">${escapeHtml(gameState.wildcard.liveNote||'')}</textarea>
+    </div>
+    ${listHtml}
+    <div class="row" style="justify-content:center">${nextBtn}${confirmBtn}</div>
+  </div>`;
+}
+function renderWildcardExplain(){
+  const qs=includedWildcardQuestions();
+  const q=currentWildcardQuestion();
+  const idx=gameState.wildcard.qIndex;
+  const isLast=idx===qs.length-1;
+  return `<div class="host-final">
+    <h2>解説</h2>
+    ${renderImgList(q.explanation.imgs,'q-img')}
+    <div class="q-text-big">${escapeHtml(q.explanation.text)}</div>
+    <button data-action="wildcard-next-question" class="btn-primary">${isLast?'▶ 進出者選択へ':'次の問題へ ▶'} (Enter)</button>
+  </div>`;
+}
+function advanceWildcardFromQuestionStage(){
+  const q=currentWildcardQuestion();
+  if(q){ gameState.wildcard.stage='explain'; saveGameState(); broadcastStateSync(); renderHost(); return; }
+  const rows=wildcardEligibleRows();
+  const eligibleCount=rows.filter(r=>r.eligible).length;
+  if(eligibleCount===0){ confirmWildcardSelectNone(); return; }
+  if(gameState.wildcard.winnerId){ confirmWildcardSelect(); }
+}
+function advanceWildcardExplain(){
+  gameState.wildcard.qIndex++;
+  gameState.wildcard.stage='question';
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function wireWildcardNote(){
+  const ta=document.getElementById('wildcard-note');
+  const sel=document.getElementById('wildcard-note-size');
+  if(!ta) return;
+  ta.addEventListener('input', ()=>{ gameState.wildcard.liveNote=ta.value; });
+  if(sel) sel.addEventListener('change', ()=>{
+    const size=Number(sel.value)||28;
+    gameState.wildcard.liveNoteSize=size;
+    ta.style.fontSize=size+'px';
+    saveGameState();
+  });
+}
 function confirmWildcardSelect(){
+  startFinalIntro();
+}
+function confirmWildcardSelectNone(){
+  gameState.wildcard.winnerId=null;
   startFinalIntro();
 }
 
