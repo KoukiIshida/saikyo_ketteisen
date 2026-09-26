@@ -677,6 +677,19 @@ function wrapSelectionBig(){
   const range=sel.getRangeAt(0); if(range.collapsed) return;
   const span=document.createElement('span'); span.style.fontSize='1.5em';
   span.appendChild(range.extractContents()); range.insertNode(span);
+  // if this enlarged run sits inside a color-highlighted span, the highlight's background/padding
+  // is sized to the SMALLER outer font unless the enlarged span carries the color class itself,
+  // which would otherwise make the bigger bold text spill outside the highlight box.
+  const parent=span.parentNode;
+  if(parent && parent.classList && (parent.classList.contains('rule-red')||parent.classList.contains('rule-normal'))){
+    const cls=parent.classList.contains('rule-red')?'rule-red':'rule-normal';
+    span.classList.add(cls);
+    const otherSiblings=Array.from(parent.childNodes).filter(n=>n!==span && !(n.nodeType===3 && n.textContent===''));
+    if(otherSiblings.length===0){
+      const grandparent=parent.parentNode;
+      if(grandparent){ grandparent.insertBefore(span, parent); grandparent.removeChild(parent); }
+    }
+  }
 }
 function wrapSelectionClass(cls){
   const sel=window.getSelection(); if(!sel.rangeCount) return;
@@ -694,6 +707,18 @@ function wrapSelectionClass(cls){
   Array.from(frag.childNodes).forEach(stripColorClasses);
   const span=document.createElement('span'); span.className=cls;
   span.appendChild(frag); range.insertNode(span);
+  // if the selection was the entire content of an already-colored ancestor span,
+  // extractContents() leaves that ancestor wrapping our new span (instead of being replaced by it),
+  // which stacks two conflicting color classes on the same text. Unwrap any such now-redundant ancestor.
+  let node=span;
+  while(node.parentNode && node.parentNode.classList && (node.parentNode.classList.contains('rule-red')||node.parentNode.classList.contains('rule-normal'))){
+    const parent=node.parentNode;
+    const otherSiblings=Array.from(parent.childNodes).filter(n=>n!==node && !(n.nodeType===3 && n.textContent===''));
+    if(otherSiblings.length>0) break;
+    const grandparent=parent.parentNode; if(!grandparent) break;
+    grandparent.insertBefore(node, parent);
+    grandparent.removeChild(parent);
+  }
 }
 
 function buildQuestionCardHTML(list,q,idx,kind){
