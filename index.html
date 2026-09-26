@@ -76,7 +76,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .host-topbar-actions{display:flex; gap:8px;}
 .host-title{font-weight:bold; font-size:18px;}
 .host-lobby,.host-rule,.host-qualifying,.host-reveal,.host-results,.host-semifinal,.host-semifinal-reveal,.host-semifinal-manual,.host-final,.host-champion{padding:24px; text-align:center;}
-.rule-display{text-align:left; max-width:700px; margin:20px auto 28px; line-height:1.7; font-size:22px;}
+.rule-display{text-align:left; max-width:1100px; margin:20px auto 28px; line-height:1.7; font-size:22px;}
 .rule-red{color:#c0392b;}
 .rule-normal{color:#222;}
 .rule-display .rule-red{color:#ff7b7b;}
@@ -1560,7 +1560,8 @@ function setupSemifinal(){
   Object.entries(gameState.players).forEach(([id,p])=>{ p.semifinal={advanced:advancedOrder.includes(id), lastAnswer:null}; });
   const finalistCount=appData.semifinal.finalistCount;
   gameState.semifinal={ roundIndex:0, candidates:candidates.slice(), targets:candidates.slice(), advancedOrder, neededTotal:finalistCount, exemptedIds, roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] };
-  if(advancedOrder.length>=finalistCount || candidates.length===0){ enterWildcard(); return; }
+  const hasAnyPlayers = Object.keys(gameState.players).length>0;
+  if(advancedOrder.length>=finalistCount || (candidates.length===0 && hasAnyPlayers)){ enterWildcard(); return; }
   enterRulePhase('semifinal');
 }
 function startNextSemifinalQuestion(){
