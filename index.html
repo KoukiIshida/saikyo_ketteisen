@@ -175,6 +175,11 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
     <p><a href="?mode=admin" id="back-to-picker-link">← 大会一覧に戻る</a></p>
     <h1>大会管理画面</h1>
     <section class="card">
+      <h2>実施時メモ</h2>
+      <p class="muted" style="margin:0 0 6px">実施する自分用のメモです（ゲーム画面・参加者画面には表示されません）。「保存する」で保存されます。</p>
+      <textarea id="f-memo" style="width:100%; min-height:140px; resize:vertical; box-sizing:border-box;" placeholder="実施時の注意点・進行メモなど自由に入力"></textarea>
+    </section>
+    <section class="card">
       <h2>大会設定</h2>
       <label>タイトル<br><input id="f-title" type="text" style="width:100%"></label>
     </section>
@@ -335,6 +340,7 @@ function slugify(text){
 function defaultRuleSlides(){ return [{img:null, groups:['']}]; }
 function defaultAppData(){return {
   eventTitle:'○○最強決定戦',
+  operationMemo:'',
   overall:{ ruleSlides:defaultRuleSlides() },
   qualifying:{ timeLimitMinutes:5, passThreshold:3, semifinalExemptionEnabled:true, ruleSlides:defaultRuleSlides(), questions:[] },
   semifinal:{ timeLimitSeconds:30, finalistCount:3, ruleSlides:defaultRuleSlides(), questions:[] },
@@ -517,6 +523,8 @@ function initAdmin(){
   upsertEventRegistry(EVENT_ID, appData.eventTitle);
   document.getElementById('f-title').value=appData.eventTitle;
   document.getElementById('f-title').addEventListener('change',e=>{appData.eventTitle=e.target.value; upsertEventRegistry(EVENT_ID, appData.eventTitle);});
+  document.getElementById('f-memo').value=appData.operationMemo||'';
+  document.getElementById('f-memo').addEventListener('input',e=>{appData.operationMemo=e.target.value;});
 
   ['overall','qualifying','semifinal','wildcard','final'].forEach(k=>{ renderRuleSlidesEditor(k); attachRuleSlidesEvents(k); });
 
@@ -554,6 +562,7 @@ function initAdmin(){
 }
 function refreshAdminUI(){
   document.getElementById('f-title').value = appData.eventTitle;
+  document.getElementById('f-memo').value = appData.operationMemo||'';
   renderRuleSlidesEditor('overall'); renderRuleSlidesEditor('qualifying'); renderRuleSlidesEditor('semifinal'); renderRuleSlidesEditor('wildcard'); renderRuleSlidesEditor('final');
   document.getElementById('q-time').value = appData.qualifying.timeLimitMinutes;
   document.getElementById('q-pass').value = appData.qualifying.passThreshold;
