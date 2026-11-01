@@ -1370,12 +1370,15 @@ function currentNavStep(){
   if(ph==='rule'){ return {overall:0, qualifying:1, semifinal:2, wildcard:3, final:4}[gameState.ruleKey||'qualifying']; }
   if(ph.indexOf('qualifying')===0) return 1;
   if(ph.indexOf('semifinal')===0) return 2;
+  if(ph==='wildcard_surprise') return 2;
   if(ph.indexOf('wildcard')===0) return 3;
   return 4;
 }
 function renderHostNav(){
   const cur=currentNavStep();
-  return `<div class="host-nav">${NAV_STEPS.map((s,i)=>`<span class="nav-step ${i===cur?'cur':(i<cur?'done':'')}">${s}</span>`).join('<span class="nav-sep">›</span>')}<span class="nav-next" id="host-nav-next"></span></div>`;
+  // 敗者復活戦はサプライズなので、告知後（ルール説明に入るまで）は進行ナビに出さない
+  const steps=NAV_STEPS.map((s,i)=>({s,i})).filter(x=>x.i!==3 || cur>=3);
+  return `<div class="host-nav">${steps.map(x=>`<span class="nav-step ${x.i===cur?'cur':(x.i<cur?'done':'')}">${x.s}</span>`).join('<span class="nav-sep">›</span>')}<span class="nav-next" id="host-nav-next"></span></div>`;
 }
 function blankPlayerRecord(name, extra){
   return Object.assign({
