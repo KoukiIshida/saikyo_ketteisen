@@ -72,8 +72,9 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 
 /* ---- Host ---- */
 #page-host.active{background:var(--bg-host); color:#fff; min-height:100vh;}
-.host-topbar{display:flex; justify-content:space-between; align-items:center; padding:10px 18px; background:#10131b;}
-.host-topbar-actions{display:flex; gap:8px;}
+.host-topbar{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 18px; background:#10131b;}
+.host-topbar-actions{display:flex; flex-wrap:wrap; gap:8px;}
+.host-topbar-actions .btn-mini{white-space:nowrap;}
 .host-title{font-weight:bold; font-size:18px;}
 .host-lobby,.host-rule,.host-qualifying,.host-reveal,.host-results,.host-semifinal,.host-semifinal-reveal,.host-semifinal-manual,.host-final,.host-champion{padding:24px; text-align:center;}
 .rule-display{text-align:left; max-width:1100px; margin:20px auto 28px; line-height:1.7; font-size:22px;}
@@ -81,8 +82,25 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .rule-normal{color:#222;}
 .rule-display .rule-red{color:#e5342b; background:#fff; padding:1px 7px; border-radius:6px; -webkit-box-decoration-break:clone; box-decoration-break:clone;}
 .rule-display .rule-normal{color:#fff;}
-.rule-display [style*="rgb(221, 51, 51)"],.rule-display font[color="#d33"]{color:#e5342b !important; background:#fff; padding:1px 7px; border-radius:6px; -webkit-box-decoration-break:clone; box-decoration-break:clone;}
-.rule-display [style*="rgb(0, 0, 0)"],.rule-display font[color="#000"]{color:#fff !important;}
+/* 貼り付けで付いてきた文字色・背景色・文字サイズは無視。基本は白、「赤字」だけ赤、拡大は「文字を大きく」の1.5emだけ有効 */
+.rule-display, .rule-display *{color:#fff !important;}
+.rule-display *:not(.rule-red){background-color:transparent !important;}
+.rule-display .rule-red, .rule-display .rule-red *{color:#e5342b !important;}
+.rule-display .rule-red{background:#fff !important;}
+.rule-display [style*="rgb(221, 51, 51)"],.rule-display font[color="#d33"]{color:#e5342b !important; background:#fff !important; padding:1px 7px; border-radius:6px; -webkit-box-decoration-break:clone; box-decoration-break:clone;}
+.rule-display [style*="font-size"]:not([style*="1.5em"]), .rule-display font[size]{font-size:inherit !important;}
+.rule-display h1,.rule-display h2,.rule-display h3,.rule-display h4,.rule-display p{font-size:inherit !important; margin:0; font-weight:inherit;}
+.surprise-text{text-align:center; font-size:28px; margin:20px auto 28px;}
+/* 次にEnterで押されるボタン */
+.enter-target{outline:3px solid #ffd166; outline-offset:2px; position:relative; animation:enterGlow 1.6s ease-in-out infinite;}
+.enter-target::after{content:'⏎ Enter'; position:absolute; top:-11px; right:-8px; background:#ffd166; color:#222; font-size:11px; font-weight:bold; padding:1px 7px; border-radius:9px; pointer-events:none; white-space:nowrap;}
+@keyframes enterGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0);}50%{box-shadow:0 0 16px 5px rgba(255,209,102,.75);}}
+.pressed{background:#8a8f99 !important; color:#fff !important; border-color:#8a8f99 !important;}
+.host-nav{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; padding:6px 12px; background:#0d1017; font-size:13px; color:#7d8696;}
+.host-nav .nav-step{padding:2px 10px; border-radius:12px;}
+.host-nav .nav-step.cur{background:#3a6df0; color:#fff; font-weight:bold;}
+.host-nav .nav-step.done{color:#aab3c5;}
+.host-nav .nav-next{margin-left:14px; color:#ffd166; font-weight:bold;}
 .finalist-names{margin-bottom:20px;}
 #qrcode-box{display:inline-block; background:#fff; padding:12px; border-radius:10px;}
 .join-url{font-size:12px; color:#9aa; word-break:break-all;}
@@ -140,6 +158,7 @@ a.btn-mini{display:inline-block; text-decoration:none; color:#333;}
 .p-center button{padding:12px 26px; font-size:16px; background:var(--accent); color:#fff; border:none; border-radius:8px;}
 .rule-img{border-radius:8px; margin-bottom:10px; cursor:zoom-in;}
 .p-timer-bar{position:sticky; top:0; background:#222; color:#fff; text-align:center; padding:8px; font-size:20px; font-variant-numeric:tabular-nums; z-index:10;}
+.p-timer-bar.warn{background:#c0392b;}
 .p-q-card{background:#fff; margin:10px; padding:14px; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08);}
 .p-q-num{font-weight:bold; color:var(--accent); margin-bottom:6px;}
 .p-q-img{border-radius:8px; margin:8px 0; cursor:zoom-in;}
@@ -620,6 +639,8 @@ function buildRuleSlidesEditorHTML(key){
             <button type="button" class="rs-act" data-act="fmt" data-cmd="colorclass" data-val="rule-normal">黒字</button>
             <button type="button" class="rs-act" data-act="fmt" data-cmd="upsize">文字を大きく</button>
             <button type="button" class="rs-act" data-act="fmt" data-cmd="removeFormat">標準文字</button>
+            <button type="button" class="btn-mini rs-act" data-act="group-insert-above">⤒上に段を挿入</button>
+            <button type="button" class="btn-mini rs-act" data-act="group-insert-below">⤓下に段を挿入</button>
             <button type="button" class="btn-mini rs-act" data-act="group-up" ${gi===0?'disabled':''}>▲段</button>
             <button type="button" class="btn-mini rs-act" data-act="group-down" ${gi===slide.groups.length-1?'disabled':''}>▼段</button>
             <button type="button" class="btn-mini rs-act" data-act="group-del" ${slide.groups.length<=1?'disabled':''}>🗑段</button>
@@ -635,6 +656,13 @@ function renderRuleSlidesEditor(key){
 function attachRuleSlidesEvents(key){
   const container=document.getElementById('rule-editor-'+key);
   container.addEventListener('mousedown', e=>{ if(e.target.closest('.rich-toolbar')) e.preventDefault(); });
+  // 他アプリからの貼り付けは書式を捨てて文字だけにする（書式はツールバーで付け直す）
+  container.addEventListener('paste', e=>{
+    if(!e.target.closest('.rule-group-edit')) return;
+    e.preventDefault();
+    const text=(e.clipboardData||window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
   container.addEventListener('click', async e=>{
     if(e.target.closest('.rs-slide-add')){
       appData[key].ruleSlides.push({img:null, groups:['']});
@@ -653,6 +681,13 @@ function attachRuleSlidesEvents(key){
     else if(act==='slide-del'){ if(slides.length>1 && confirm('このページを削除しますか？')){ slides.splice(si,1); renderRuleSlidesEditor(key); } }
     else if(act==='slide-img-remove'){ slide.img=null; renderRuleSlidesEditor(key); }
     else if(act==='group-add'){ slide.groups.push(''); renderRuleSlidesEditor(key); }
+    else if(act==='group-insert-above' || act==='group-insert-below'){
+      const at = act==='group-insert-above' ? gi : gi+1;
+      slide.groups.splice(at,0,'');
+      renderRuleSlidesEditor(key);
+      const target=document.querySelector(`#rule-editor-${key} .rule-slide-card[data-si="${si}"] .rule-group-block[data-gi="${at}"] .rule-group-edit`);
+      if(target) target.focus();
+    }
     else if(act==='group-up'){ if(gi>0){ [slide.groups[gi-1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi-1]]; renderRuleSlidesEditor(key); } }
     else if(act==='group-down'){ if(gi<slide.groups.length-1){ [slide.groups[gi+1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi+1]]; renderRuleSlidesEditor(key); } }
     else if(act==='group-del'){ if(slide.groups.length>1){ slide.groups.splice(gi,1); renderRuleSlidesEditor(key); } }
@@ -985,7 +1020,7 @@ function freshGameState(){return {
   qualifying:{startedAt:null, durationMs:0, showSubmitStatus:false, revealQIndex:0, revealSubStep:0, resultsRevealIndex:-1, resultsOrder:[], failStartIndex:-1, failRevealed:false},
   semifinal:{ roundIndex:0, candidates:[], targets:[], advancedOrder:[], neededTotal:appData.semifinal.finalistCount, exemptedIds:[], roundStartedAt:null, durationMs:0, showSubmitStatus:false, revealStage:'answers', manualSelect:false, resultText:'', manualPicks:[], _nearestGroup:[] },
   wildcard:{ qIndex:0, stage:'question', winnerId:null, eliminated:[], liveNote:'', liveNoteSize:18 },
-  final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null }
+  final:{ finalists:[], qIndex:0, roundState:'showing', pendingCorrectPlayer:null, championId:null, undo:null }
 };}
 function genRoomId(){ return String(Math.floor(100000+Math.random()*900000)); }
 
@@ -993,17 +1028,22 @@ async function initHost(){
   requestWakeLock();
   attachHostEnterKey();
   attachHostRootDelegation();
+  applyHostZoom();
   const savedRoom=localStorage.getItem(LS_ROOM);
   const savedStateRaw=localStorage.getItem(LS_STATE);
   if(savedRoom && savedStateRaw){
-    if(confirm('前回の続きがあります。続きから再開しますか？（キャンセルで新しい部屋を作成します）')){
-      try{
-        gameState=JSON.parse(savedStateRaw);
-        Object.values(gameState.players).forEach(p=>{p.conn=null; p.connected=false;});
-        startPeer(savedRoom);
-        return;
-      }catch(e){}
-    } else {
+    let saved=null;
+    try{ saved=JSON.parse(savedStateRaw); }catch(e){}
+    if(saved && saved.phase==='champion'){
+      localStorage.removeItem(LS_STATE); localStorage.removeItem(LS_ROOM);
+    } else if(saved && confirm('前回の続きがあります。続きから再開しますか？（キャンセルで新しい部屋を作成します）')){
+      gameState=saved;
+      if(!gameState.final) gameState.final={};
+      Object.values(gameState.players).forEach(p=>{p.conn=null; p.connected=false;});
+      extendTimersAfterResume();
+      startPeer(savedRoom, true);
+      return;
+    } else if(saved){
       localStorage.removeItem(LS_STATE);
     }
   }
@@ -1011,7 +1051,22 @@ async function initHost(){
   startPeer(null);
 }
 
-function startPeer(roomId){
+// ホストが落ちていた間の時間は進めない（再開時に残り時間を延長して復元する）
+function extendTimersAfterResume(){
+  const downtime=Math.max(0, Date.now()-(gameState.heartbeatAt||Date.now()));
+  if(gameState.phase==='qualifying' && gameState.qualifying.startedAt){
+    if(!gameState.qualifying.roundId) gameState.qualifying.roundId=gameState.qualifying.startedAt;
+    gameState.qualifying.startedAt += downtime;
+    startQualifyingTimer();
+  } else if(gameState.phase==='semifinal' && !gameState.semifinal.manualSelect && gameState.semifinal.roundStartedAt){
+    if(!gameState.semifinal.roundId) gameState.semifinal.roundId=gameState.semifinal.roundStartedAt;
+    gameState.semifinal.roundStartedAt += downtime;
+    startSemifinalTimer();
+  }
+}
+
+function startPeer(roomId, isResume, attempt){
+  attempt = attempt||0;
   const id = roomId || genRoomId();
   peer = new Peer(id);
   peer.on('open', pid=>{
@@ -1023,22 +1078,34 @@ function startPeer(roomId){
     conn.on('close', ()=>{ const p=findPlayerByConn(conn); if(p){ p.connected=false; renderHost(); } });
   });
   peer.on('error', err=>{
-    if(err && err.type==='unavailable-id'){ startPeer(genRoomId()); }
+    if(err && err.type==='unavailable-id'){
+      try{ peer.destroy(); }catch(e){}
+      if(isResume && attempt<8){ setTimeout(()=>startPeer(roomId, true, attempt+1), 2500); }
+      else { startPeer(genRoomId()); }
+    }
     else { console.error(err); }
   });
 }
 function findPlayerByConn(conn){ return Object.values(gameState.players).find(p=>p.conn===conn); }
 
 function saveGameState(){
+  gameState.heartbeatAt=Date.now();
   const clone=JSON.parse(JSON.stringify(gameState, (k,v)=> k==='conn' ? undefined : v));
   localStorage.setItem(LS_STATE, JSON.stringify(clone));
 }
+function normName(s){ return String(s||'').normalize('NFKC').trim().toLowerCase(); }
 function sendTo(playerId,msg){ const p=gameState.players[playerId]; if(p&&p.conn&&p.conn.open){ try{p.conn.send(msg);}catch(e){} } }
 function broadcastAll(msg){ Object.keys(gameState.players).forEach(pid=>sendTo(pid,msg)); }
 function broadcastStateSync(){ Object.keys(gameState.players).forEach(sendStateSyncTo); }
 
 function handleParticipantMessage(conn, data){
   if(data.type==='join'){
+    const wantName=normName(data.name);
+    const dup=Object.entries(gameState.players).find(([id,pl])=>id!==data.playerId && normName(pl.name)===wantName);
+    if(!wantName || dup){
+      try{ conn.send({type:'join_rejected', reason: wantName?'duplicate':'empty'}); }catch(e){}
+      return;
+    }
     let p=gameState.players[data.playerId];
     if(!p){
       p=gameState.players[data.playerId]={
@@ -1092,7 +1159,8 @@ function sendStateSyncTo(playerId){
   else if(phase==='qualifying'){
     payload.questions = currentQualifyingQuestions().map(sanitizeQuestionForParticipant);
     payload.durationMs = gameState.qualifying.durationMs;
-    payload.startedAt = gameState.qualifying.startedAt;
+    payload.startedAt = gameState.qualifying.roundId || gameState.qualifying.startedAt;
+    payload.remainMs = gameState.qualifying.startedAt + gameState.qualifying.durationMs - Date.now();
     payload.submitted = p.qualifying.submitted;
   }
   else if(phase==='qualifying_ended' || phase==='qualifying_reveal' || phase==='qualifying_results'){
@@ -1101,7 +1169,8 @@ function sendStateSyncTo(playerId){
   else if(phase==='semifinal'){
     if(!gameState.semifinal.manualSelect){
       payload.durationMs = gameState.semifinal.durationMs;
-      payload.startedAt = gameState.semifinal.roundStartedAt;
+      payload.startedAt = gameState.semifinal.roundId || gameState.semifinal.roundStartedAt;
+      payload.remainMs = gameState.semifinal.roundStartedAt + gameState.semifinal.durationMs - Date.now();
       payload.alreadyAdvanced = p.semifinal.advanced;
       payload.isTarget = isSemifinalTarget(playerId);
       payload.submitted = p.semifinal.lastAnswer!=null;
@@ -1201,40 +1270,163 @@ const hostActions={
   'final-start': ()=>{ startFinalRound(); },
   'final-mark': (arg)=>{ const [pid,verdict]=arg.split('|'); markFinalAnswer(pid,verdict); },
   'final-next': ()=>{ nextFinalQuestion(); },
-  'declare-champion': (arg)=>{ declareChampion(arg); }
+  'declare-champion': (arg)=>{ declareChampion(arg); },
+  'final-undo': ()=>{ undoFinal(); },
+  'add-dummies': ()=>{ addDummyPlayers(); },
+  'remove-dummies': ()=>{ removeDummyPlayers(); },
+  'dummy-answer-qualifying': ()=>{ dummyAnswerQualifying(); },
+  'dummy-answer-semifinal': ()=>{ dummyAnswerSemifinal(); },
+  'host-zoom-up': ()=>{ changeHostZoom(0.1); },
+  'host-zoom-down': ()=>{ changeHostZoom(-0.1); },
+  'host-fullscreen': ()=>{
+    if(document.fullscreenElement){ document.exitFullscreen(); }
+    else if(document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(()=>{}); }
+  }
 };
+let hostActionLockAt=0;
 function attachHostRootDelegation(){
   document.getElementById('host-root').addEventListener('click', e=>{
     const el=e.target.closest('[data-action]'); if(!el) return;
-    const fn=hostActions[el.dataset.action]; if(fn) fn(el.dataset.arg, el);
+    const fn=hostActions[el.dataset.action]; if(!fn) return;
+    // 主ボタンは連打・二重押しを防ぎ、押した直後はグレーにする
+    if(el.classList.contains('btn-primary') || el.classList.contains('enter-target')){
+      const now=Date.now();
+      if(now-hostActionLockAt<400) return;
+      hostActionLockAt=now;
+      el.classList.add('pressed');
+      setTimeout(()=>el.classList.remove('pressed'),400);
+    }
+    fn(el.dataset.arg, el);
   });
 }
 function attachHostEnterKey(){
   document.addEventListener('keydown', e=>{
     if(MODE!=='host') return;
     if(e.key!=='Enter') return;
+    if(e.isComposing || e.keyCode===229) return;
     const tag=(e.target.tagName||'').toLowerCase();
-    if(tag==='input'||tag==='textarea'||e.target.isContentEditable) return;
+    if(tag==='input'||tag==='textarea'||tag==='select'||e.target.isContentEditable) return;
     e.preventDefault();
+    if(e.repeat) return;
     handleHostEnter();
   });
 }
+// 「次にEnterで押されるボタン」を1つ返す。光る印も実際のEnter動作もここから決まる
+function enterActionName(){
+  if(!gameState) return null;
+  switch(gameState.phase){
+    case 'lobby': return 'start-rule';
+    case 'rule': return 'rule-next';
+    case 'qualifying_ended': return 'start-qualifying-reveal';
+    case 'qualifying_reveal': return 'q-reveal-advance';
+    case 'qualifying_results': return 'q-results-advance';
+    case 'semifinal_reveal': return 'sf-reveal-advance';
+    case 'semifinal':
+      if(gameState.semifinal.manualSelect){
+        const remaining=gameState.semifinal.neededTotal-gameState.semifinal.advancedOrder.length;
+        return gameState.semifinal.targets.length<=remaining ? 'sf-manual-confirm-all' : 'sf-manual-confirm';
+      }
+      return null;
+    case 'wildcard_surprise': return 'wildcard-surprise-next';
+    case 'wildcard_rule_ranking': return 'wildcard-ranking-next';
+    case 'wildcard':
+      if(gameState.wildcard.stage==='explain') return 'wildcard-next-question';
+      if(currentWildcardQuestion()) return 'wildcard-see-explain';
+      return wildcardEligibleRows().some(r=>r.eligible) ? 'wildcard-confirm' : 'wildcard-confirm-none';
+    case 'final':
+      return gameState.final.roundState==='explained' ? 'final-next' : null;
+    default: return null;
+  }
+}
+function findEnterButton(){
+  const name=enterActionName(); if(!name) return null;
+  return document.querySelector(`#host-root [data-action="${name}"]:not([disabled])`);
+}
+function markEnterTarget(){
+  document.querySelectorAll('#host-root .enter-target').forEach(b=>b.classList.remove('enter-target'));
+  const btn=findEnterButton();
+  if(btn) btn.classList.add('enter-target');
+  const nav=document.getElementById('host-nav-next');
+  if(nav) nav.textContent = btn ? '⏎ Enter：'+btn.textContent.trim() : '';
+}
 function handleHostEnter(){
   if(!gameState) return;
-  switch(gameState.phase){
-    case 'qualifying_ended': startQualifyingReveal(); break;
-    case 'qualifying_reveal': advanceQualifyingReveal(); break;
-    case 'qualifying_results': advanceQualifyingResults(); break;
-    case 'semifinal_reveal': advanceSemifinalReveal(); break;
-    case 'final': if(currentFinalQuestion()) nextFinalQuestion(); break;
-    case 'rule': advanceRuleReveal(); break;
-    case 'wildcard_surprise': hostActions['wildcard-surprise-next'](); break;
-    case 'wildcard_rule_ranking': hostActions['wildcard-ranking-next'](); break;
-    case 'wildcard':
-      if(gameState.wildcard.stage==='explain') hostActions['wildcard-next-question']();
-      else hostActions['wildcard-see-explain']();
-      break;
-  }
+  const btn=findEnterButton();
+  if(btn) btn.click();
+}
+
+/* ---- host zoom / nav / dummy players ---- */
+function hostZoomValue(){ const z=Number(localStorage.getItem('saikyou_host_zoom')); return z>=0.7 && z<=1.6 ? z : 1; }
+function applyHostZoom(){ const r=document.getElementById('host-root'); if(r) r.style.zoom=hostZoomValue(); }
+function changeHostZoom(delta){
+  const z=Math.min(1.6, Math.max(0.7, Math.round((hostZoomValue()+delta)*10)/10));
+  localStorage.setItem('saikyou_host_zoom', String(z));
+  applyHostZoom();
+}
+const NAV_STEPS=['参加受付','予選','準決勝','敗者復活戦','決勝'];
+function currentNavStep(){
+  const ph=gameState.phase;
+  if(ph==='lobby') return 0;
+  if(ph==='rule'){ return {overall:0, qualifying:1, semifinal:2, wildcard:3, final:4}[gameState.ruleKey||'qualifying']; }
+  if(ph.indexOf('qualifying')===0) return 1;
+  if(ph.indexOf('semifinal')===0) return 2;
+  if(ph.indexOf('wildcard')===0) return 3;
+  return 4;
+}
+function renderHostNav(){
+  const cur=currentNavStep();
+  return `<div class="host-nav">${NAV_STEPS.map((s,i)=>`<span class="nav-step ${i===cur?'cur':(i<cur?'done':'')}">${s}</span>`).join('<span class="nav-sep">›</span>')}<span class="nav-next" id="host-nav-next"></span></div>`;
+}
+function blankPlayerRecord(name, extra){
+  return Object.assign({
+    name, conn:null, connected:true,
+    qualifying:{answers:{}, correctCount:0, submitted:false, submittedAtMs:null, passed:null, exempted:false, manualOverrides:{}},
+    semifinal:{advanced:false, lastAnswer:null},
+    final:{correctCount:0, lockedUntilQuestionIdx:null}
+  }, extra||{});
+}
+function dummyIds(){ return Object.entries(gameState.players).filter(([id,p])=>p.dummy).map(([id])=>id); }
+function addDummyPlayers(){
+  ['テスト1','テスト2','テスト3','テスト4'].forEach((n,i)=>{
+    const id='dummy'+(i+1);
+    if(gameState.players[id]) return;
+    if(Object.values(gameState.players).some(p=>normName(p.name)===normName(n))) return;
+    gameState.players[id]=blankPlayerRecord(n,{dummy:true});
+  });
+  saveGameState(); renderHost();
+}
+function removeDummyPlayers(){
+  dummyIds().forEach(id=>{ delete gameState.players[id]; });
+  saveGameState(); renderHost();
+}
+function dummyAnswerQualifying(){
+  if(gameState.phase!=='qualifying') return;
+  const qs=currentQualifyingQuestions();
+  const elapsed=Date.now()-gameState.qualifying.startedAt;
+  dummyIds().forEach((id,idx)=>{
+    const p=gameState.players[id]; if(p.qualifying.submitted) return;
+    const answers={};
+    qs.forEach(q=>{
+      const right=Math.random()<0.6;
+      if(q.type==='text'){ answers[q.id]={text: right ? ((q.correctTexts||[]).filter(Boolean)[0]||'') : 'ちがう答え'}; }
+      else { const ci=q.correctIndices||[]; answers[q.id]={selected: right ? ci.slice() : [ci[0]===0?1:0]}; }
+    });
+    p.qualifying.answers=answers; p.qualifying.submitted=true;
+    p.qualifying.submittedAtMs=Math.max(1, Math.floor(elapsed*(0.5+0.5*Math.random())))+idx*13;
+  });
+  saveGameState(); renderHost();
+}
+function dummyAnswerSemifinal(){
+  const q=currentSemifinalQuestion(); if(!q || gameState.phase!=='semifinal') return;
+  dummyIds().forEach(id=>{
+    const p=gameState.players[id]; if(p.semifinal.lastAnswer!=null) return;
+    p.semifinal.lastAnswer=Math.max(0, Math.round(q.targetNumber + (Math.random()-0.5)*Math.max(10, Math.abs(q.targetNumber)*0.5)));
+  });
+  saveGameState(); renderHost();
+}
+function dummyButtonHtml(action, label){
+  const ids=dummyIds(); if(!ids.length) return '';
+  return `<div class="row" style="justify-content:center"><button data-action="${action}" class="btn-mini">🧪 ${label}</button></div>`;
 }
 
 function renderHost(){
@@ -1256,9 +1448,10 @@ function renderHost(){
     case 'final': body=renderFinalPhase(); break;
     case 'champion': body=renderChampion(); break;
   }
-  root.innerHTML = `<div class="host-topbar"><span class="host-title">${eventTitle}</span><div class="host-topbar-actions"><button data-action="open-admin" class="btn-mini">⚙ 管理画面</button><button data-action="restart-all" class="btn-mini">🆕 最初から</button></div></div>${body}`;
+  root.innerHTML = `<div class="host-topbar"><span class="host-title">${eventTitle}</span><div class="host-topbar-actions"><button data-action="host-zoom-down" class="btn-mini" title="文字を小さく">A−</button><button data-action="host-zoom-up" class="btn-mini" title="文字を大きく">A＋</button><button data-action="host-fullscreen" class="btn-mini" title="全画面">⛶</button><button data-action="open-admin" class="btn-mini">⚙ 管理画面</button><button data-action="restart-all" class="btn-mini">🆕 最初から</button></div></div>${renderHostNav()}${body}`;
   if(gameState.phase==='lobby') renderQR();
   if(gameState.phase==='wildcard') wireWildcardNote();
+  markEnterTarget();
 }
 
 /* ---- lobby / rule ---- */
@@ -1269,9 +1462,14 @@ function renderLobby(){
     <div id="qrcode-box"></div>
     <p class="join-url" id="join-url-text"></p>
     <p>参加人数: <strong>${players.length}</strong>人</p>
-    <div class="player-chips">${players.map(p=>`<span class="chip ${p.connected?'':'chip-off'}">${escapeHtml(p.name)}</span>`).join('')||'<span class="muted">まだ誰も参加していません</span>'}</div>
+    <div class="player-chips">${players.map(p=>`<span class="chip ${p.connected?'':'chip-off'}">${escapeHtml(p.name)}${p.dummy?'（ダミー）':''}</span>`).join('')||'<span class="muted">まだ誰も参加していません</span>'}</div>
     <div class="row" style="justify-content:center">
       <button data-action="start-rule" class="btn-primary">▶ ルール説明へ進む</button>
+    </div>
+    <div class="row" style="justify-content:center; margin-top:18px">
+      <button data-action="add-dummies" class="btn-mini">🧪 リハーサル用ダミー参加者を追加（4名）</button>
+      ${dummyIds().length?'<button data-action="remove-dummies" class="btn-mini">ダミーを全員削除</button>':''}
+      <button data-action="reset-room" class="btn-mini">🆕 新しい部屋を作り直す</button>
     </div>
   </div>`;
 }
@@ -1322,7 +1520,7 @@ function renderRulePhase(){
     <div class="rule-display">${slide.img?`<img class="rule-img" src="${slide.img}">`:''}${groupsHtml}</div>
     <div class="row" style="justify-content:center">
       <button data-action="rule-prev" class="btn-mini" ${atStart?'disabled':''}>◀ 前へ</button>
-      <button data-action="rule-next" class="btn-primary">${nextLabel} (Enter)</button>
+      <button data-action="rule-next" class="btn-primary">${nextLabel}</button>
     </div>
   </div>`;
 }
@@ -1373,10 +1571,16 @@ function startQualifying(){
   if(qs.length===0){ alert('予選の問題が登録されていません'); return; }
   Object.values(gameState.players).forEach(p=>{ p.qualifying={answers:{}, correctCount:0, submitted:false, submittedAtMs:null, passed:null, exempted:false, manualOverrides:{}}; });
   gameState.qualifying.startedAt=Date.now();
+  gameState.qualifying.roundId=gameState.qualifying.startedAt;
   gameState.qualifying.durationMs = appData.qualifying.timeLimitMinutes*60000;
   gameState.qualifying.showSubmitStatus=false;
   gameState.phase='qualifying';
   saveGameState(); broadcastStateSync(); renderHost(); startQualifyingTimer();
+}
+let lastHeartbeatSaveAt=0;
+function touchHeartbeat(){
+  const now=Date.now();
+  if(now-lastHeartbeatSaveAt>=1000){ lastHeartbeatSaveAt=now; saveGameState(); }
 }
 function startQualifyingTimer(){
   clearInterval(qualifyingTimerHandle);
@@ -1384,7 +1588,8 @@ function startQualifyingTimer(){
     if(gameState.phase!=='qualifying'){ clearInterval(qualifyingTimerHandle); return; }
     const remain=gameState.qualifying.startedAt+gameState.qualifying.durationMs-Date.now();
     const timerEl=document.getElementById('qualifying-timer'); if(timerEl) timerEl.textContent=fmtTime(remain);
-    if(remain<=0){ clearInterval(qualifyingTimerHandle); endQualifyingNow(); }
+    if(remain<=0){ clearInterval(qualifyingTimerHandle); endQualifyingNow(); return; }
+    touchHeartbeat();
   },250);
 }
 function endQualifyingNow(){
@@ -1402,7 +1607,7 @@ function renderQualifyingEnded(){
   return `<div class="host-qualifying">
     <h2>予選 解答受付終了</h2>
     <p>全員の解答を締め切りました。</p>
-    <button data-action="start-qualifying-reveal" class="btn-primary">▶ 結果発表へ (Enter)</button>
+    <button data-action="start-qualifying-reveal" class="btn-primary">▶ 結果発表へ</button>
   </div>`;
 }
 function startQualifyingReveal(){
@@ -1410,12 +1615,18 @@ function startQualifyingReveal(){
   gameState.qualifying.revealQIndex=0; gameState.qualifying.revealSubStep=0;
   saveGameState(); broadcastStateSync(); renderHost();
 }
+// 表記ゆれ吸収：全角/半角・大文字小文字・ひらがな/カタカナ・空白や一部の記号を無視して比較する
+function normalizeAnswerText(s){
+  return String(s||'').normalize('NFKC').toLowerCase()
+    .replace(/[ぁ-ゖ]/g, ch=>String.fromCharCode(ch.charCodeAt(0)+0x60))
+    .replace(/[\s　・､、。「」『』!！?？~〜～]/g,'');
+}
 function isAnswerCorrect(q, ans){
   if(!ans) return false;
   if(q.type==='text'){
-    const val=(ans.text||'').trim().toLowerCase();
+    const val=normalizeAnswerText(ans.text);
     if(!val) return false;
-    return (q.correctTexts||[]).some(c=>c && c.trim().toLowerCase()===val);
+    return (q.correctTexts||[]).some(c=>c && normalizeAnswerText(c)===val);
   } else {
     const sel=(ans.selected||[]).slice().sort((a,b)=>a-b);
     const correct=(q.correctIndices||[]).slice().sort((a,b)=>a-b);
@@ -1453,10 +1664,11 @@ function renderQualifyingMonitor(){
   return `<div class="host-qualifying">
     <h2>予選 解答受付中</h2>
     <div class="big-timer" id="qualifying-timer">${fmtTime(remain)}</div>
-    <div class="player-chips">${players.map(p=>`<span class="chip">${escapeHtml(p.name)}</span>`).join('')}</div>
+    <div class="player-chips">${players.map(p=>`<span class="chip ${p.connected?'':'chip-off'}">${escapeHtml(p.name)}${p.connected?'':'（切断中）'}</span>`).join('')}</div>
     <div class="row" style="justify-content:center">
       <button data-action="force-end-qualifying" class="btn-mini">⏹ 今すぐ締め切る</button>
     </div>
+    ${dummyButtonHtml('dummy-answer-qualifying','ダミーが解答する')}
   </div>`;
 }
 
@@ -1515,7 +1727,7 @@ function renderQualifyingReveal(){
   return `<div class="host-reveal">
     <div class="reveal-progress">第${idx+1}問 / 全${qs.length}問</div>
     ${content}
-    <button data-action="q-reveal-advance" class="btn-primary">${isLast?'▶ 結果発表へ (Enter)':'次へ (Enter)'}</button>
+    <button data-action="q-reveal-advance" class="btn-primary">${isLast?'▶ 結果発表へ':'次へ'}</button>
   </div>`;
 }
 function advanceQualifyingReveal(){
@@ -1564,9 +1776,9 @@ function renderQualifyingResults(){
   const topDone = gameState.qualifying.resultsRevealIndex+1>=failStart;
   const failDone = failStart>=order.length || gameState.qualifying.failRevealed;
   let label;
-  if(topDone && failDone) label='▶ 準決勝へ進む (Enter)';
-  else if(topDone && !failDone) label='予選落ちを一斉オープン (Enter)';
-  else label='次の順位を開く (Enter)';
+  if(topDone && failDone) label='▶ 準決勝へ進む';
+  else if(topDone && !failDone) label='予選落ちを一斉オープン';
+  else label='次の順位を開く';
   return `<div class="host-results"><h2>予選結果発表</h2><div class="rank-list">${rows}</div>
     <button data-action="q-results-advance" class="btn-primary">${label}</button></div>`;
 }
@@ -1613,6 +1825,7 @@ function startNextSemifinalQuestion(){
   }
   Object.values(gameState.players).forEach(p=>{ p.semifinal.lastAnswer=null; });
   gameState.semifinal.roundStartedAt=Date.now();
+  gameState.semifinal.roundId=gameState.semifinal.roundStartedAt;
   gameState.semifinal.durationMs=appData.semifinal.timeLimitSeconds*1000;
   gameState.semifinal.showSubmitStatus=false;
   gameState.phase='semifinal';
@@ -1624,7 +1837,8 @@ function startSemifinalTimer(){
     if(gameState.phase!=='semifinal' || gameState.semifinal.manualSelect){ clearInterval(semifinalTimerHandle); return; }
     const remain=gameState.semifinal.roundStartedAt+gameState.semifinal.durationMs-Date.now();
     const el=document.getElementById('semifinal-timer'); if(el) el.textContent=fmtTime(remain);
-    if(remain<=0){ clearInterval(semifinalTimerHandle); enterSemifinalReveal(); }
+    if(remain<=0){ clearInterval(semifinalTimerHandle); enterSemifinalReveal(); return; }
+    touchHeartbeat();
   },250);
 }
 function enterSemifinalReveal(){
@@ -1657,6 +1871,7 @@ function renderSemifinalPhase(){
       <button data-action="toggle-semifinal-submit-status" class="btn-mini">${show?'🙈 提出状況を隠す':'👀 提出状況を表示'}</button>
       <button data-action="force-end-semifinal" class="btn-mini">⏹ 今すぐ締め切る</button>
     </div>
+    ${dummyButtonHtml('dummy-answer-semifinal','ダミーが解答する')}
   </div>`;
 }
 function semifinalManualRequiredPicks(){
@@ -1748,7 +1963,7 @@ function renderSemifinalReveal(){
     <h2>準決勝 第${gameState.semifinal.roundIndex+1}問 結果</h2>
     <div class="advanced-badges">${advancedNames.length?'勝ち抜け: '+advancedNames.map(n=>`<span class="tag tag-pass">${escapeHtml(n)}</span>`).join(''):''}</div>
     ${body}
-    <button data-action="sf-reveal-advance" class="btn-primary">次へ (Enter)</button>
+    <button data-action="sf-reveal-advance" class="btn-primary">次へ</button>
   </div>`;
 }
 function advanceSemifinalReveal(){
@@ -1789,8 +2004,8 @@ function enterWildcard(){
 function renderWildcardSurprise(){
   return `<div class="host-rule">
     <h2>🎉 サプライズ 🎉</h2>
-    <div class="rule-display" style="text-align:center;"><p style="font-size:28px;">実は…敗者復活戦があります！</p></div>
-    <button data-action="wildcard-surprise-next" class="btn-primary">▶ 敗者復活戦のルール説明へ (Enter)</button>
+    <div class="surprise-text"><p>実は…敗者復活戦があります！</p></div>
+    <button data-action="wildcard-surprise-next" class="btn-primary">▶ 敗者復活戦のルール説明へ</button>
   </div>`;
 }
 function wildcardEligibleRows(){
@@ -1834,7 +2049,7 @@ function renderWildcardRuleRanking(){
     <div class="manual-list">${buildWildcardCandidateListHTML(false)}</div>
     <div class="row" style="justify-content:center">
       <button data-action="wildcard-ranking-prev" class="btn-mini">◀ 前へ</button>
-      <button data-action="wildcard-ranking-next" class="btn-primary">次へ ▶ (Enter)</button>
+      <button data-action="wildcard-ranking-next" class="btn-primary">次へ ▶</button>
     </div>
   </div>`;
 }
@@ -1855,7 +2070,7 @@ function renderWildcardPhase(){
   const listHtml = eligibleCount===0
     ? `<p>対象者がいません。</p><div class="manual-list">${buildWildcardCandidateListHTML(false)}</div>`
     : `<div class="manual-list">${buildWildcardCandidateListHTML(true)}</div>`;
-  const nextBtn = q ? `<button data-action="wildcard-see-explain" class="btn-mini">解説を見る ▶ (Enter)</button>` : '';
+  const nextBtn = q ? `<button data-action="wildcard-see-explain" class="btn-mini">解説を見る ▶</button>` : '';
   const confirmBtn = eligibleCount===0
     ? `<button data-action="wildcard-confirm-none" class="btn-primary">▶ そのまま決勝へ進む</button>`
     : `<button data-action="wildcard-confirm" class="btn-primary" ${gameState.wildcard.winnerId?'':'disabled'}>▶ 進出者を確定する</button>`;
@@ -1895,7 +2110,7 @@ function renderWildcardExplain(){
     <h2>解説</h2>
     ${renderImgList(q.explanation.imgs,'q-img')}
     <div class="q-text-big">${escapeHtml(q.explanation.text)}</div>
-    <button data-action="wildcard-next-question" class="btn-primary">${isLast?'▶ 進出者選択へ':'次の問題へ ▶'} (Enter)</button>
+    <button data-action="wildcard-next-question" class="btn-primary">${isLast?'▶ 進出者選択へ':'次の問題へ ▶'}</button>
   </div>`;
 }
 function advanceWildcardFromQuestionStage(){
@@ -1937,7 +2152,7 @@ function startFinalIntro(){
   if(gameState.wildcard.winnerId && !gameState.final.finalists.includes(gameState.wildcard.winnerId)){
     gameState.final.finalists.push(gameState.wildcard.winnerId);
   }
-  gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null; gameState.final.championId=null;
+  gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null; gameState.final.championId=null; gameState.final.undo=null;
   gameState.final.finalists.forEach(id=>{ gameState.players[id].final={correctCount:0, lockedUntilQuestionIdx:null}; });
   enterRulePhase('final');
 }
@@ -1946,8 +2161,37 @@ function startFinalRound(){
   if(qs.length===0){ alert('決勝の問題が登録されていません'); return; }
   if(gameState.final.finalists.length===0){ alert('決勝進出者がいません。予選の合格ラインなどを見直してください。'); return; }
   gameState.phase='final';
-  gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null;
+  gameState.final.qIndex=0; gameState.final.roundState='showing'; gameState.final.pendingCorrectPlayer=null; gameState.final.undo=null;
   saveGameState(); broadcastStateSync(); renderHost();
+}
+// 決勝の「直前の1手」だけ取り消せるように、操作の直前の状態を1つだけ保持する
+function snapshotFinal(){
+  const players={};
+  gameState.final.finalists.forEach(id=>{
+    const p=gameState.players[id]; if(!p) return;
+    players[id]={correctCount:p.final.correctCount, lockedUntilQuestionIdx:p.final.lockedUntilQuestionIdx};
+  });
+  gameState.final.undo={
+    phase:gameState.phase,
+    qIndex:gameState.final.qIndex, roundState:gameState.final.roundState,
+    pendingCorrectPlayer:gameState.final.pendingCorrectPlayer, championId:gameState.final.championId,
+    players
+  };
+}
+function undoFinal(){
+  const s=gameState.final.undo; if(!s) return;
+  gameState.phase=s.phase;
+  gameState.final.qIndex=s.qIndex; gameState.final.roundState=s.roundState;
+  gameState.final.pendingCorrectPlayer=s.pendingCorrectPlayer; gameState.final.championId=s.championId;
+  Object.entries(s.players).forEach(([id,v])=>{
+    const p=gameState.players[id]; if(!p) return;
+    p.final.correctCount=v.correctCount; p.final.lockedUntilQuestionIdx=v.lockedUntilQuestionIdx;
+  });
+  gameState.final.undo=null;
+  saveGameState(); broadcastStateSync(); renderHost();
+}
+function finalUndoButtonHtml(){
+  return gameState.final.undo ? `<div class="row" style="justify-content:center"><button data-action="final-undo" class="btn-mini">↩ 直前の操作を取り消す</button></div>` : '';
 }
 function buildFinalPlayerRows(idx, showButtons){
   return gameState.final.finalists.map(id=>{
@@ -1967,6 +2211,7 @@ function renderFinalPhase(){
   if(!q){
     return `<div class="host-final"><h2>決勝</h2><p>登録された問題を使い切りました。手動で優勝者を決定してください。</p>
       ${gameState.final.finalists.map(id=>`<button class="btn-mini" data-action="declare-champion" data-arg="${id}">${escapeHtml(gameState.players[id].name)}を優勝に</button>`).join('')}
+      ${finalUndoButtonHtml()}
     </div>`;
   }
   const idx=gameState.final.qIndex;
@@ -1981,7 +2226,8 @@ function renderFinalPhase(){
       ${renderImgList(q.explanation.imgs,'q-img')}
       <div class="q-text-big">${escapeHtml(q.explanation.text)}</div>
       <div class="final-players">${buildFinalPlayerRows(idx,false)}</div>
-      <button data-action="final-next" class="btn-primary">${willBeChampion?'▶ 優勝を発表 (Enter)':'次の問題へ (Enter)'}</button>
+      <button data-action="final-next" class="btn-primary">${willBeChampion?'▶ 優勝を発表':'次の問題へ'}</button>
+      ${finalUndoButtonHtml()}
     </div>`;
   }
   return `<div class="host-final">
@@ -1989,12 +2235,14 @@ function renderFinalPhase(){
     ${renderImgList(q.prompt.imgs,'q-img')}
     <div class="q-text-big">${escapeHtml(q.prompt.text)}</div>
     <div class="final-players">${buildFinalPlayerRows(idx,true)}</div>
-    <button data-action="final-next" class="btn-mini">次の問題へ (Enter)</button>
+    <button data-action="final-next" class="btn-mini">次の問題へ</button>
+    ${finalUndoButtonHtml()}
   </div>`;
 }
 function markFinalAnswer(pid, verdict){
   const p=gameState.players[pid]; if(!p) return;
   const idx=gameState.final.qIndex;
+  snapshotFinal();
   if(verdict==='wrong'){
     p.final.lockedUntilQuestionIdx = idx+1;
     saveGameState(); broadcastStateSync(); renderHost();
@@ -2006,33 +2254,44 @@ function markFinalAnswer(pid, verdict){
   }
 }
 function nextFinalQuestion(){
+  snapshotFinal();
   if(gameState.final.roundState==='explained'){
     const pid=gameState.final.pendingCorrectPlayer;
     const p=pid && gameState.players[pid];
-    if(p && p.final.correctCount>=appData.final.winCount){ declareChampion(pid); return; }
+    if(p && p.final.correctCount>=appData.final.winCount){ declareChampion(pid, true); return; }
     gameState.final.pendingCorrectPlayer=null;
   }
   gameState.final.qIndex++;
   gameState.final.roundState='showing';
   saveGameState(); broadcastStateSync(); renderHost();
 }
-function declareChampion(pid){
+function declareChampion(pid, keepSnapshot){
+  if(!keepSnapshot) snapshotFinal();
   gameState.final.championId=pid;
   gameState.phase='champion';
   saveGameState(); broadcastStateSync(); renderHost();
 }
 function renderChampion(){
   const name=gameState.players[gameState.final.championId]?gameState.players[gameState.final.championId].name:'???';
-  return `<div class="host-champion"><h1>🏆 優勝 🏆</h1><div class="champion-name">${escapeHtml(name)}</div></div>`;
+  const finalRows=gameState.final.finalists.slice().sort((a,b)=>gameState.players[b].final.correctCount-gameState.players[a].final.correctCount)
+    .map(id=>`<div class="rank-row"><span class="rank-name">${escapeHtml(gameState.players[id].name)}${id===gameState.final.championId?' 🏆':''}</span><span class="rank-detail">決勝 ${gameState.players[id].final.correctCount}問正解</span></div>`).join('');
+  const qualRows=(gameState.qualifying.resultsOrder||[]).filter(e=>gameState.players[e.id]).map(e=>{
+    const p=gameState.players[e.id];
+    return `<div class="rank-row"><span class="rank-num">${e.rank}位</span><span class="rank-name">${escapeHtml(p.name)}</span><span class="rank-detail">${p.qualifying.correctCount}問正解 / ${fmtTime(p.qualifying.submittedAtMs)}</span></div>`;
+  }).join('');
+  return `<div class="host-champion"><h1>🏆 優勝 🏆</h1><div class="champion-name">${escapeHtml(name)}</div>
+    ${finalRows?`<h3>決勝の成績</h3><div class="rank-list">${finalRows}</div>`:''}
+    ${qualRows?`<h3>予選の順位</h3><div class="rank-list">${qualRows}</div>`:''}
+    ${finalUndoButtonHtml()}
+    <div class="row" style="justify-content:center"><button data-action="reset-room" class="btn-mini">🆕 新しい部屋を作り直す</button></div>
+  </div>`;
 }
 function resetWholeGame(){
   clearInterval(qualifyingTimerHandle); clearInterval(semifinalTimerHandle);
   const oldPlayers=gameState.players;
   gameState=freshGameState();
   Object.entries(oldPlayers).forEach(([id,p])=>{
-    gameState.players[id]={name:p.name, conn:p.conn, connected:p.connected,
-      qualifying:{answers:{}, correctCount:0, submitted:false, submittedAtMs:null, passed:null, exempted:false, manualOverrides:{}},
-      semifinal:{advanced:false,lastAnswer:null}, final:{correctCount:0,lockedUntilQuestionIdx:null}};
+    gameState.players[id]=blankPlayerRecord(p.name, {conn:p.conn, connected:p.connected, dummy:p.dummy||undefined});
   });
   saveGameState(); broadcastStateSync(); renderHost();
 }
@@ -2041,7 +2300,7 @@ function resetWholeGame(){
 let myPlayerId=null, myName='', myConn=null, myPeer=null;
 let lastPayload=null;
 let qualifyingLocal={ questions:[], answers:{}, durationMs:0, startedAt:0, submitted:false };
-let participantTimerHandle=null, participantTimerStartedFor=null;
+let participantTimerHandle=null, participantTimerStartedFor=null, participantEndsAt=0;
 let semifinalLocalSubmittedFor=null;
 
 function initParticipant(){
@@ -2054,7 +2313,14 @@ function initParticipant(){
   renderJoinOrConnecting();
   myPeer=new Peer();
   myPeer.on('open', ()=>{ connectToHost(roomId); });
-  myPeer.on('error', err=>{ console.error(err); setTimeout(()=>{ try{ connectToHost(roomId); }catch(e){} },3000); });
+  myPeer.on('error', err=>{
+    console.error(err);
+    if(err && err.type==='peer-unavailable') renderHostNotFound();
+    setTimeout(()=>{ try{ connectToHost(roomId); }catch(e){} },3000);
+  });
+}
+function renderHostNotFound(){
+  document.getElementById('participant-root').innerHTML = `<div class="p-center"><div class="spinner"></div><h2>部屋が見つかりません</h2><p>ホストの画面が開いているか、QRコードが最新か確認してください。<br>自動で再接続を試みています…</p></div>`;
 }
 function connectToHost(roomId){
   function tryConnect(){
@@ -2070,9 +2336,10 @@ function sendJoin(){ if(myConn&&myConn.open) myConn.send({type:'join', playerId:
 function renderJoinOrConnecting(){
   document.getElementById('participant-root').innerHTML = `<div class="p-center"><div class="spinner"></div><p>ホストに接続しています…</p></div>`;
 }
-function renderNicknameForm(){
+function renderNicknameForm(msg){
   document.getElementById('participant-root').innerHTML = `<div class="p-center">
     <h2>ニックネームを入力</h2>
+    ${msg?`<p class="tag tag-fail" style="white-space:normal">${escapeHtml(msg)}</p>`:''}
     <input type="text" id="nickname-input" maxlength="12" placeholder="ニックネーム"><br>
     <button id="btn-join">参加する</button>
   </div>`;
@@ -2084,8 +2351,29 @@ function renderNicknameForm(){
   });
 }
 function handleHostMessage(data){
-  if(data.type==='state_sync'){ lastPayload=data.payload; renderParticipant(); }
+  if(data.type==='state_sync'){
+    lastPayload=data.payload;
+    if(typeof data.payload.remainMs==='number') participantEndsAt = Date.now() + data.payload.remainMs;
+    renderParticipant();
+  }
   else if(data.type==='qualifying_timeup'){ forceSubmitQualifying(); }
+  else if(data.type==='join_rejected'){
+    myName=''; sessionStorage.removeItem(SS_NAME);
+    renderNicknameForm(data.reason==='duplicate' ? 'そのニックネームは既に使われています。別のニックネームを入力してください。' : 'ニックネームを入力してください。');
+  }
+}
+function participantTimerTick(){
+  const remain=participantEndsAt-Date.now();
+  const el=document.getElementById('p-timer');
+  if(el){
+    el.textContent=fmtTime(remain);
+    const bar=el.closest('.p-timer-bar'); if(bar) bar.classList.toggle('warn', remain>0 && remain<=60000);
+  }
+  if(remain<=0){
+    clearInterval(participantTimerHandle);
+    const sb=document.getElementById('btn-submit-sf');
+    if(sb){ sb.disabled=true; sb.textContent='時間切れ'; const inp=document.getElementById('sf-input'); if(inp) inp.disabled=true; }
+  }
 }
 
 function renderParticipant(){
@@ -2191,12 +2479,8 @@ function sendAnswerUpdate(){
 }
 function startParticipantTimer(){
   clearInterval(participantTimerHandle);
-  const startedAt=qualifyingLocal.startedAt, duration=qualifyingLocal.durationMs;
-  participantTimerHandle=setInterval(()=>{
-    const remain=startedAt+duration-Date.now();
-    const el=document.getElementById('p-timer'); if(el) el.textContent=fmtTime(remain);
-    if(remain<=0){ clearInterval(participantTimerHandle); }
-  },250);
+  participantTimerTick();
+  participantTimerHandle=setInterval(participantTimerTick,250);
 }
 function confirmSubmitQualifying(){
   const unanswered=[];
@@ -2247,11 +2531,8 @@ function renderSemifinalParticipant(payload){
 }
 function startSemifinalParticipantTimer(payload){
   clearInterval(participantTimerHandle);
-  participantTimerHandle=setInterval(()=>{
-    const remain=payload.startedAt+payload.durationMs-Date.now();
-    const el=document.getElementById('p-timer'); if(el) el.textContent=fmtTime(remain);
-    if(remain<=0) clearInterval(participantTimerHandle);
-  },250);
+  participantTimerTick();
+  participantTimerHandle=setInterval(participantTimerTick,250);
 }
 
 /* ---- participant: final ---- */
